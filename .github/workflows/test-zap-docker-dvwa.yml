@@ -29,6 +29,7 @@ jobs:
 
   test-zap-dvwa-full:
     name: ZAP Full Scan - DVWA
+    needs: test-zap-dvwa-baseline
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'zap'

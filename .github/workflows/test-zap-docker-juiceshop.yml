@@ -29,6 +29,7 @@ jobs:
 
   test-zap-full:
     name: ZAP Full Scan - Juice Shop
+    needs: test-zap-baseline
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'zap'
@@ -41,6 +42,7 @@ jobs:
 
   test-zap-api:
     name: ZAP API Scan - Juice Shop
+    needs: test-zap-full
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'zap'

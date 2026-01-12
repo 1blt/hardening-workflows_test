@@ -30,6 +30,7 @@ jobs:
 
   test-threshold-informational:
     name: Threshold Informational (Should Fail)
+    needs: test-threshold-none
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     continue-on-error: true
     with:
@@ -44,6 +45,7 @@ jobs:
 
   test-threshold-low:
     name: Threshold Low (Should Fail)
+    needs: test-threshold-informational
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     continue-on-error: true
     with:
@@ -58,6 +60,7 @@ jobs:
 
   test-threshold-medium:
     name: Threshold Medium (Should Fail)
+    needs: test-threshold-low
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     continue-on-error: true
     with:
@@ -72,6 +75,7 @@ jobs:
 
   test-threshold-high:
     name: Threshold High (May Pass or Fail)
+    needs: test-threshold-medium
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     continue-on-error: true
     with:

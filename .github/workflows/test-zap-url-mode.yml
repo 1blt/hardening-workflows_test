@@ -27,6 +27,7 @@ jobs:
 
   test-zap-url-testfire-full:
     name: ZAP Full Scan - Altoro Mutual
+    needs: test-zap-url-testfire
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'zap'

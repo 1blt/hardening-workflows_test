@@ -24,6 +24,7 @@ jobs:
 
   test-zap-with-other-scanners:
     name: ZAP + Other Scanners
+    needs: test-zap-opt-in
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'trivy,semgrep,zap'
@@ -34,6 +35,7 @@ jobs:
 
   test-zap-only:
     name: ZAP Only
+    needs: test-zap-with-other-scanners
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'zap'
