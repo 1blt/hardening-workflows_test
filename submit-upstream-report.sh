@@ -34,7 +34,7 @@ case $choice in
         echo "Posting as comment on PR #$PR_NUMBER..."
         gh pr comment $PR_NUMBER --repo $UPSTREAM_REPO --body-file $REPORT_FILE
         echo ""
-        echo "✅ Comment posted successfully!"
+        echo "Comment posted successfully!"
         echo "View at: https://github.com/$UPSTREAM_REPO/pull/$PR_NUMBER"
         ;;
     2)
@@ -45,7 +45,7 @@ case $choice in
             --body-file $REPORT_FILE \
             --label "bug,testing"
         echo ""
-        echo "✅ Issue created successfully!"
+        echo "Issue created successfully!"
         ;;
     3)
         echo ""
@@ -56,12 +56,12 @@ case $choice in
     4)
         if command -v pbcopy &> /dev/null; then
             cat $REPORT_FILE | pbcopy
-            echo "✅ Report copied to clipboard (macOS)"
+            echo "Report copied to clipboard (macOS)"
         elif command -v xclip &> /dev/null; then
             cat $REPORT_FILE | xclip -selection clipboard
-            echo "✅ Report copied to clipboard (Linux)"
+            echo "Report copied to clipboard (Linux)"
         else
-            echo "❌ Clipboard tool not found (pbcopy or xclip required)"
+            echo "Error: Clipboard tool not found (pbcopy or xclip required)"
             exit 1
         fi
         ;;

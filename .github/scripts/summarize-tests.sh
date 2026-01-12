@@ -10,12 +10,12 @@ echo ""
 
 # Check if gh CLI is available
 if ! command -v gh &> /dev/null; then
-    echo "❌ GitHub CLI (gh) is not installed"
+    echo "ERROR: GitHub CLI (gh) is not installed"
     exit 1
 fi
 
 # Get recent workflow runs
-echo "📋 Recent Test Runs:"
+echo "Recent Test Runs:"
 echo ""
 gh run list --limit 10 --json name,status,conclusion,createdAt --jq '.[] | "\(.createdAt | split("T")[0]) - \(.name): \(.conclusion // .status)"'
 
@@ -52,7 +52,7 @@ echo "======================================"
 echo ""
 
 ls -1 .github/workflows/*.yml | while read -r file; do
-    echo "✅ $(basename "$file")"
+    echo "$(basename "$file")"
 done
 
 echo ""
@@ -60,19 +60,19 @@ echo "======================================"
 echo "Available Test Applications"
 echo "======================================"
 echo ""
-echo "🧪 OWASP Juice Shop (bkimminich/juice-shop)"
+echo "OWASP Juice Shop (bkimminich/juice-shop)"
 echo "   - Comprehensive vulnerable web app"
 echo "   - Tests: XSS, SQLi, CSRF, security headers"
 echo ""
-echo "🧪 DVWA (vulnerables/web-dvwa)"
+echo "DVWA (vulnerables/web-dvwa)"
 echo "   - Damn Vulnerable Web Application"
 echo "   - Tests: SQLi, XSS, command injection"
 echo ""
-echo "🧪 Podinfo (ghcr.io/stefanprodan/podinfo)"
+echo "Podinfo (ghcr.io/stefanprodan/podinfo)"
 echo "   - Clean reference application"
 echo "   - Tests: Baseline security, minimal findings"
 echo ""
-echo "🧪 Altoro Mutual (demo.testfire.net)"
+echo "Altoro Mutual (demo.testfire.net)"
 echo "   - OWASP public test site"
 echo "   - Tests: URL mode, external scanning"
 echo ""

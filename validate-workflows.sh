@@ -1,12 +1,12 @@
 #!/bin/bash
 # Validate GitHub Actions workflows locally before committing
 
-echo "🔍 Validating GitHub Actions workflows..."
+echo "Validating GitHub Actions workflows..."
 echo ""
 
 # Check if actionlint is installed
 if ! command -v actionlint &> /dev/null; then
-    echo "❌ actionlint is not installed"
+    echo "Error: actionlint is not installed"
     echo "Install with: brew install actionlint"
     exit 1
 fi
@@ -25,7 +25,7 @@ if [ -n "$1" ]; then
     if [ "$SHOW_SHELLCHECK" = true ]; then
         actionlint "$1"
     else
-        actionlint -ignore 'SC[0-9]+:' "$1" && echo "✅ No critical errors"
+        actionlint -ignore 'SC[0-9]+:' "$1" && echo "No critical errors"
     fi
 else
     # Validate all workflows
@@ -41,9 +41,9 @@ else
     done
 
     if [ "$has_errors" = false ]; then
-        echo "✅ All workflows valid!"
+        echo "All workflows valid!"
     else
-        echo "❌ Some workflows have errors"
+        echo "Error: Some workflows have errors"
         exit 1
     fi
 fi

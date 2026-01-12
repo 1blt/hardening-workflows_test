@@ -11,6 +11,14 @@ on:
           - all
           - basic
         default: 'all'
+      zap_source:
+        description: 'ZAP workflow source'
+        required: true
+        type: choice
+        options:
+          - fork
+          - original
+        default: 'fork'
   schedule:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
@@ -27,7 +35,9 @@ jobs:
   # Test HRL branch (expected to fail - demonstrates Issue #1)
   test-hrl-baseline:
     name: HRL Branch - URL Mode
-    if: inputs.test_suite == 'all' || inputs.test_suite == 'basic'
+    if: |
+      (inputs.test_suite == 'all' || inputs.test_suite == 'basic') &&
+      (github.event_name == 'schedule' || inputs.zap_source == 'original')
     continue-on-error: true
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
@@ -41,7 +51,9 @@ jobs:
   # Test fork with fixes - URL Mode (runs in parallel)
   test-fork-url:
     name: Fork with Fixes - URL Mode
-    if: inputs.test_suite == 'all' || inputs.test_suite == 'basic'
+    if: |
+      (inputs.test_suite == 'all' || inputs.test_suite == 'basic') &&
+      (github.event_name != 'schedule' && inputs.zap_source == 'fork')
     uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
     with:
       scanners: 'zap'
@@ -54,7 +66,9 @@ jobs:
   # Test fork with fixes - Docker Mode (runs in parallel)
   test-fork-docker:
     name: Fork with Fixes - Docker Mode
-    if: inputs.test_suite == 'all' || inputs.test_suite == 'basic'
+    if: |
+      (inputs.test_suite == 'all' || inputs.test_suite == 'basic') &&
+      (github.event_name != 'schedule' && inputs.zap_source == 'fork')
     uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
     with:
       scanners: 'zap'
@@ -77,13 +91,21 @@ jobs:
         run: |
           echo "## Test Suite Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### HRL Branch (feat/zap-scanner) - Expected to Fail" >> $GITHUB_STEP_SUMMARY
-          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| URL Mode (testphp.vulnweb.com) | ${{ needs.test-hrl-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Fork with Fixes (1blt@feat/zap-scanner-fixes-250112)" >> $GITHUB_STEP_SUMMARY
-          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| URL Mode (demo.testfire.net) | ${{ needs.test-fork-url.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Mode (Juice Shop) | ${{ needs.test-fork-docker.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Show results based on which source was selected
+          if [[ "${{ needs.test-hrl-baseline.result }}" != "skipped" ]]; then
+            echo "### HRL Branch (feat/zap-scanner) - Expected to Fail" >> $GITHUB_STEP_SUMMARY
+            echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| URL Mode (testphp.vulnweb.com) | ${{ needs.test-hrl-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ needs.test-fork-url.result }}" != "skipped" ]]; then
+            echo "### Fork with Fixes (1blt@feat/zap-scanner-fixes-250112)" >> $GITHUB_STEP_SUMMARY
+            echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| URL Mode (demo.testfire.net) | ${{ needs.test-fork-url.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker Mode (Juice Shop) | ${{ needs.test-fork-docker.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -21,8 +21,8 @@ echo "======================================"
 echo "Local ZAP Scanner Test"
 echo "======================================"
 echo ""
-echo "⚠️  NOTE: This tests ZAP locally, NOT the workflow integration"
-echo "    Use GitHub Actions to test PR #101 properly"
+echo "NOTE: This tests ZAP locally, NOT the workflow integration"
+echo "      Use GitHub Actions to test PR #101 properly"
 echo ""
 
 # Create output directory
@@ -97,14 +97,14 @@ start_container() {
     echo "Waiting for container to be ready..."
     for i in {1..30}; do
         if curl -sf "$health_url" > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ Container ready!${NC}"
+            echo -e "${GREEN}Container ready!${NC}"
             return 0
         fi
         echo -n "."
         sleep 2
     done
 
-    echo -e "${RED}❌ Container failed to start${NC}"
+    echo -e "${RED}Error: Container failed to start${NC}"
     docker logs "$container_name"
     docker stop "$container_name"
     exit 1
@@ -161,17 +161,17 @@ esac
 
 echo ""
 echo "======================================"
-echo -e "${GREEN}✅ Scan Complete!${NC}"
+echo -e "${GREEN}Scan Complete!${NC}"
 echo "======================================"
 echo ""
-echo "📄 Reports generated in: $OUTPUT_DIR"
+echo "Reports generated in: $OUTPUT_DIR"
 ls -lh "$OUTPUT_DIR"
 echo ""
-echo "🔍 View results:"
+echo "View results:"
 echo "  HTML: open $OUTPUT_DIR/*-$SCAN_TYPE.html"
 echo "  JSON: cat $OUTPUT_DIR/*-$SCAN_TYPE.json"
 echo "  Markdown: cat $OUTPUT_DIR/*-$SCAN_TYPE.md"
 echo ""
-echo "✅ Validate results:"
+echo "Validate results:"
 echo "  .github/scripts/validate-zap-results.sh $OUTPUT_DIR/*-$SCAN_TYPE.json"
 echo ""
