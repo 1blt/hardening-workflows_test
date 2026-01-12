@@ -161,7 +161,7 @@ jobs:
       zap_app_image_ref: 'bkimminich/juice-shop:latest'
       zap_app_ports: '3000:3000'
       zap_target_urls: 'http://localhost:3000'
-      zap_failure_threshold: 'none'
+      allow_failure: true
     secrets: inherit
 
   test-threshold-informational:
@@ -176,7 +176,8 @@ jobs:
       zap_app_image_ref: 'bkimminich/juice-shop:latest'
       zap_app_ports: '3000:3000'
       zap_target_urls: 'http://localhost:3000'
-      zap_failure_threshold: 'informational'
+      allow_failure: false
+      severity_threshold: 'low'
     secrets: inherit
 
   test-threshold-low:
@@ -191,7 +192,8 @@ jobs:
       zap_app_image_ref: 'bkimminich/juice-shop:latest'
       zap_app_ports: '3000:3000'
       zap_target_urls: 'http://localhost:3000'
-      zap_failure_threshold: 'low'
+      allow_failure: false
+      severity_threshold: 'low'
     secrets: inherit
 
   test-threshold-medium:
@@ -206,7 +208,8 @@ jobs:
       zap_app_image_ref: 'bkimminich/juice-shop:latest'
       zap_app_ports: '3000:3000'
       zap_target_urls: 'http://localhost:3000'
-      zap_failure_threshold: 'medium'
+      allow_failure: false
+      severity_threshold: 'medium'
     secrets: inherit
 
   test-threshold-high:
@@ -221,7 +224,8 @@ jobs:
       zap_app_image_ref: 'bkimminich/juice-shop:latest'
       zap_app_ports: '3000:3000'
       zap_target_urls: 'http://localhost:3000'
-      zap_failure_threshold: 'high'
+      allow_failure: false
+      severity_threshold: 'high'
     secrets: inherit
 
   # Integration Tests
