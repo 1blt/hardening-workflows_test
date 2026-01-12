@@ -2,29 +2,6 @@ name: Test ZAP - Docker Mode (DVWA)
 
 on:
   workflow_dispatch:
-    inputs:
-      workflow_repository:
-        description: 'Repository (owner/repo) of hardening-workflows to test'
-        required: false
-        type: string
-        default: 'huntridge-labs/hardening-workflows'
-      workflow_ref:
-        description: 'Branch/tag of hardening-workflows to test'
-        required: false
-        type: string
-        default: 'feat/zap-scanner'
-  workflow_call:
-    inputs:
-      workflow_repository:
-        description: 'Repository (owner/repo) of hardening-workflows to test'
-        required: false
-        type: string
-        default: 'huntridge-labs/hardening-workflows'
-      workflow_ref:
-        description: 'Branch/tag of hardening-workflows to test'
-        required: false
-        type: string
-        default: 'feat/zap-scanner'
   push:
     branches: [main]
   pull_request:
@@ -40,7 +17,7 @@ permissions:
 jobs:
   test-zap-dvwa-baseline:
     name: ZAP Baseline - DVWA
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -53,7 +30,7 @@ jobs:
   test-zap-dvwa-full:
     name: ZAP Full Scan - DVWA
     needs: test-zap-dvwa-baseline
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'

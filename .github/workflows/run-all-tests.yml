@@ -37,75 +37,284 @@ permissions:
   contents: read
 
 jobs:
-  # Scan Mode Tests
-  test-url-mode:
+  # Scan Mode Tests - URL Mode
+  test-zap-url-testfire:
+    name: ZAP URL Mode - Altoro Mutual (testfire.net)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ./.github/workflows/test-zap-url-mode.yml
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'zap'
+      zap_scan_mode: 'url'
+      zap_scan_type: 'baseline'
+      zap_target_urls: 'http://demo.testfire.net'
+    secrets: inherit
 
-  test-docker-juiceshop:
+  test-zap-url-testfire-full:
+    name: ZAP Full Scan - Altoro Mutual
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ./.github/workflows/test-zap-docker-juiceshop.yml
+    needs: test-zap-url-testfire
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'zap'
+      zap_scan_mode: 'url'
+      zap_scan_type: 'full'
+      zap_target_urls: 'http://demo.testfire.net'
+    secrets: inherit
 
-  test-docker-dvwa:
+  # Scan Mode Tests - Docker Mode (Juice Shop)
+  test-zap-baseline:
+    name: ZAP Baseline Scan - Juice Shop
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ./.github/workflows/test-zap-docker-dvwa.yml
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+    secrets: inherit
 
-  test-docker-podinfo:
+  test-zap-full:
+    name: ZAP Full Scan - Juice Shop
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ./.github/workflows/test-zap-docker-podinfo.yml
+    needs: test-zap-baseline
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'full'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+    secrets: inherit
 
-  test-compose-mode:
+  test-zap-api:
+    name: ZAP API Scan - Juice Shop
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ./.github/workflows/test-zap-compose-mode.yml
+    needs: test-zap-full
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'api'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+      zap_api_spec: 'http://localhost:3000/api-docs'
+    secrets: inherit
+
+  # Scan Mode Tests - Docker Mode (DVWA)
+  test-zap-dvwa-baseline:
+    name: ZAP Baseline - DVWA
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'vulnerables/web-dvwa:latest'
+      zap_app_ports: '80:80'
+      zap_target_urls: 'http://localhost:80'
+    secrets: inherit
+
+  test-zap-dvwa-full:
+    name: ZAP Full Scan - DVWA
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
+    needs: test-zap-dvwa-baseline
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'full'
+      zap_app_image_ref: 'vulnerables/web-dvwa:latest'
+      zap_app_ports: '80:80'
+      zap_target_urls: 'http://localhost:80'
+    secrets: inherit
+
+  # Scan Mode Tests - Docker Mode (Podinfo)
+  test-zap-podinfo-baseline:
+    name: ZAP Baseline - Podinfo (Clean App)
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'ghcr.io/stefanprodan/podinfo:latest'
+      zap_app_ports: '9898:9898'
+      zap_target_urls: 'http://localhost:9898'
+    secrets: inherit
+
+  # Scan Mode Tests - Compose Mode
+  test-zap-compose:
+    name: ZAP Compose Mode - Multiple Services
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'compose'
+      zap_scan_type: 'baseline'
+      zap_compose_file: 'docker-compose.yml'
+      zap_target_urls: 'http://localhost:3000'
+    secrets: inherit
 
   # Threshold Tests
-  test-thresholds:
+  test-threshold-none:
+    name: Threshold None (Should Pass)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
-    uses: ./.github/workflows/test-zap-thresholds.yml
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+      zap_failure_threshold: 'none'
+    secrets: inherit
+
+  test-threshold-informational:
+    name: Threshold Informational (Should Fail)
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
+    needs: test-threshold-none
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    continue-on-error: true
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+      zap_failure_threshold: 'informational'
+    secrets: inherit
+
+  test-threshold-low:
+    name: Threshold Low (Should Fail)
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
+    needs: test-threshold-informational
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    continue-on-error: true
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+      zap_failure_threshold: 'low'
+    secrets: inherit
+
+  test-threshold-medium:
+    name: Threshold Medium (Should Fail)
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
+    needs: test-threshold-low
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    continue-on-error: true
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+      zap_failure_threshold: 'medium'
+    secrets: inherit
+
+  test-threshold-high:
+    name: Threshold High (May Pass or Fail)
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
+    needs: test-threshold-medium
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    continue-on-error: true
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'docker-run'
+      zap_scan_type: 'baseline'
+      zap_app_image_ref: 'bkimminich/juice-shop:latest'
+      zap_app_ports: '3000:3000'
+      zap_target_urls: 'http://localhost:3000'
+      zap_failure_threshold: 'high'
+    secrets: inherit
 
   # Integration Tests
-  test-integration:
+  test-zap-opt-in:
+    name: ZAP is Opt-In (not in 'all')
     if: inputs.test_suite == 'all' || inputs.test_suite == 'integration'
-    uses: ./.github/workflows/test-zap-integration.yml
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
     with:
-      workflow_repository: ${{ inputs.workflow_repository }}
-      workflow_ref: ${{ inputs.workflow_ref }}
+      scanners: 'all'
+    secrets: inherit
+
+  test-zap-with-other-scanners:
+    name: ZAP + Other Scanners
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'integration'
+    needs: test-zap-opt-in
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    with:
+      scanners: 'trivy,semgrep,zap'
+      zap_scan_mode: 'url'
+      zap_scan_type: 'baseline'
+      zap_target_urls: 'http://demo.testfire.net'
+    secrets: inherit
+
+  test-zap-only:
+    name: ZAP Only
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'integration'
+    needs: test-zap-with-other-scanners
+    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    with:
+      scanners: 'zap'
+      zap_scan_mode: 'url'
+      zap_scan_type: 'baseline'
+      zap_target_urls: 'http://demo.testfire.net'
+    secrets: inherit
 
   # Summary
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test-url-mode, test-docker-juiceshop, test-docker-dvwa, test-docker-podinfo, test-compose-mode, test-thresholds, test-integration]
+    needs: [
+      test-zap-url-testfire, test-zap-url-testfire-full,
+      test-zap-baseline, test-zap-full, test-zap-api,
+      test-zap-dvwa-baseline, test-zap-dvwa-full,
+      test-zap-podinfo-baseline,
+      test-zap-compose,
+      test-threshold-none, test-threshold-informational, test-threshold-low, test-threshold-medium, test-threshold-high,
+      test-zap-opt-in, test-zap-with-other-scanners, test-zap-only
+    ]
     if: always()
     steps:
       - name: Check Test Results
         run: |
           echo "## Test Suite Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Scan Mode Tests" >> $GITHUB_STEP_SUMMARY
           echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| URL Mode | ${{ needs.test-url-mode.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker - Juice Shop | ${{ needs.test-docker-juiceshop.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker - DVWA | ${{ needs.test-docker-dvwa.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker - Podinfo | ${{ needs.test-docker-podinfo.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Compose Mode | ${{ needs.test-compose-mode.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Thresholds | ${{ needs.test-thresholds.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration | ${{ needs.test-integration.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL Mode - Baseline | ${{ needs.test-zap-url-testfire.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL Mode - Full | ${{ needs.test-zap-url-testfire-full.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Juice Shop - Baseline | ${{ needs.test-zap-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Juice Shop - Full | ${{ needs.test-zap-full.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Juice Shop - API | ${{ needs.test-zap-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| DVWA - Baseline | ${{ needs.test-zap-dvwa-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| DVWA - Full | ${{ needs.test-zap-dvwa-full.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Podinfo - Baseline | ${{ needs.test-zap-podinfo-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compose Mode | ${{ needs.test-zap-compose.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Threshold Tests" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Threshold None | ${{ needs.test-threshold-none.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Threshold Informational | ${{ needs.test-threshold-informational.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Threshold Low | ${{ needs.test-threshold-low.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Threshold Medium | ${{ needs.test-threshold-medium.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Threshold High | ${{ needs.test-threshold-high.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ZAP Opt-In Test | ${{ needs.test-zap-opt-in.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ZAP with Other Scanners | ${{ needs.test-zap-with-other-scanners.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ZAP Only | ${{ needs.test-zap-only.result }} |" >> $GITHUB_STEP_SUMMARY
