@@ -16,7 +16,7 @@ Testing of the ZAP scanner integration in PR #101 has identified **2 critical is
 **Test Evidence:**
 - Test Repository: [1blt/hardening-workflows_test_zap](https://github.com/1blt/hardening-workflows_test_zap/)
 - HRL Test Run: Shows chmod failure in `test-hrl-baseline` job
-- Fork Test Run: Shows successful execution in `test-zap-url`, `test-zap-docker`, `test-threshold` jobs
+- Fork Test Runs: Show successful execution in `test-fork-url` and `test-fork-docker` jobs
 
 ---
 
@@ -196,36 +196,41 @@ Without these permissions, the workflow will fail immediately with a permissions
 
 ### Test Configuration
 
-Two test scenarios were executed:
+All tests run in **parallel** to enable direct comparison:
 
 1. **HRL Branch (feat/zap-scanner)** - Expected to fail
    ```yaml
    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
+   with:
+     zap_target_urls: 'http://testphp.vulnweb.com'
    ```
 
 2. **Fork with Fixes Applied** - Expected to pass
    ```yaml
    uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
+   with:
+     # Test 1: URL Mode
+     zap_target_urls: 'http://demo.testfire.net'
+     # Test 2: Docker Mode
+     zap_target_urls: 'http://localhost:3000'
    ```
 
 ### Test Results Summary
 
-| Test Run | Result | Error |
+| Test Run | Result | Notes |
 |----------|--------|-------|
-| HRL Baseline | FAILURE | chmod: cannot access scripts |
-| Fork - URL Mode | SUCCESS | All scans completed |
-| Fork - Docker Mode | SUCCESS | All scans completed |
-| Fork - Threshold | SUCCESS | All scans completed |
+| HRL - URL Mode (testphp.vulnweb.com) | FAILURE | chmod: cannot access scripts |
+| Fork - URL Mode (demo.testfire.net) | SUCCESS | All scans completed |
+| Fork - Docker Mode (Juice Shop) | SUCCESS | All scans completed |
 
 ### Test Coverage
 
 - URL scanning mode (`zap_scan_mode: 'url'`)
 - Docker scanning mode (`zap_scan_mode: 'docker-run'`)
-- Severity threshold enforcement (`severity_threshold: 'high'`)
-- Multiple target applications:
-  - demo.testfire.net (Altoro Mutual)
-  - localhost:3000 (OWASP Juice Shop)
-  - testphp.vulnweb.com (TestPHP)
+- Multiple target applications (different URLs to prevent artifact collision):
+  - testphp.vulnweb.com (TestPHP) - HRL test
+  - demo.testfire.net (Altoro Mutual) - Fork test
+  - localhost:3000 (OWASP Juice Shop) - Fork test
 
 ### Verified Functionality (After Fixes)
 

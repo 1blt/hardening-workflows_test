@@ -26,7 +26,7 @@ permissions:
 jobs:
   # Test HRL branch (expected to fail - demonstrates Issue #1)
   test-hrl-baseline:
-    name: HRL Branch Test (Expected Failure)
+    name: HRL Branch - URL Mode
     if: inputs.test_suite == 'all' || inputs.test_suite == 'basic'
     continue-on-error: true
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
@@ -34,15 +34,14 @@ jobs:
       scanners: 'zap'
       zap_scan_mode: 'url'
       zap_scan_type: 'baseline'
-      zap_target_urls: 'http://demo.testfire.net'
+      zap_target_urls: 'http://testphp.vulnweb.com'
       allow_failure: true
     secrets: inherit
 
-  # Test with fixes applied (fork) - URL Mode
-  test-zap-url:
+  # Test fork with fixes - URL Mode (runs in parallel)
+  test-fork-url:
     name: Fork with Fixes - URL Mode
-    needs: [test-hrl-baseline]
-    if: always() && (inputs.test_suite == 'all' || inputs.test_suite == 'basic')
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'basic'
     uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
     with:
       scanners: 'zap'
@@ -52,11 +51,10 @@ jobs:
       allow_failure: true
     secrets: inherit
 
-  # Test with fixes applied (fork) - Docker Mode
-  test-zap-docker:
+  # Test fork with fixes - Docker Mode (runs in parallel)
+  test-fork-docker:
     name: Fork with Fixes - Docker Mode
-    needs: [test-zap-url]
-    if: always() && (inputs.test_suite == 'all' || inputs.test_suite == 'basic')
+    if: inputs.test_suite == 'all' || inputs.test_suite == 'basic'
     uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
     with:
       scanners: 'zap'
@@ -68,40 +66,24 @@ jobs:
       allow_failure: true
     secrets: inherit
 
-  # Test with fixes applied (fork) - Threshold test
-  test-threshold:
-    name: Fork with Fixes - Threshold Test
-    needs: [test-zap-docker]
-    if: always() && (inputs.test_suite == 'all' || inputs.test_suite == 'basic')
-    uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'baseline'
-      zap_target_urls: 'http://testphp.vulnweb.com'
-      allow_failure: true
-      severity_threshold: 'high'
-    secrets: inherit
-
   # Summary
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test-hrl-baseline, test-zap-url, test-zap-docker, test-threshold]
+    needs: [test-hrl-baseline, test-fork-url, test-fork-docker]
     if: always()
     steps:
       - name: Check Test Results
         run: |
           echo "## Test Suite Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### HRL Branch (feat/zap-scanner)" >> $GITHUB_STEP_SUMMARY
+          echo "### HRL Branch (feat/zap-scanner) - Expected to Fail" >> $GITHUB_STEP_SUMMARY
           echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| HRL Baseline | ${{ needs.test-hrl-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL Mode (testphp.vulnweb.com) | ${{ needs.test-hrl-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Fork with Fixes (1blt/feat/zap-scanner-fixes-250112)" >> $GITHUB_STEP_SUMMARY
+          echo "### Fork with Fixes (1blt@feat/zap-scanner-fixes-250112)" >> $GITHUB_STEP_SUMMARY
           echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| URL Mode | ${{ needs.test-zap-url.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Mode | ${{ needs.test-zap-docker.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Threshold Test | ${{ needs.test-threshold.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL Mode (demo.testfire.net) | ${{ needs.test-fork-url.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Mode (Juice Shop) | ${{ needs.test-fork-docker.result }} |" >> $GITHUB_STEP_SUMMARY
