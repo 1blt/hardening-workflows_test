@@ -1,10 +1,18 @@
 name: Test ZAP - URL Mode (External Target)
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
+    inputs:
+      workflow_repository:
+        description: 'Repository (owner/repo) of hardening-workflows to test'
+        required: false
+        type: string
+        default: '1blt/hardening-workflows'
+      workflow_ref:
+        description: 'Branch/tag of hardening-workflows to test'
+        required: false
+        type: string
+        default: 'feat/zap-scanner-fixes-250112'
 
 permissions:
   actions: read
@@ -17,7 +25,7 @@ permissions:
 jobs:
   test-zap-url-testfire:
     name: ZAP URL Mode - Altoro Mutual (testfire.net)
-    uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
+    uses: ${{ inputs.workflow_repository }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'url'
@@ -28,7 +36,7 @@ jobs:
   test-zap-url-testfire-full:
     name: ZAP Full Scan - Altoro Mutual
     needs: test-zap-url-testfire
-    uses: 1blt/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner-fixes-250112
+    uses: ${{ inputs.workflow_repository }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'url'
