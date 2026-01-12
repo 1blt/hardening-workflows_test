@@ -18,12 +18,12 @@ on:
         description: 'Repository (owner/repo) of hardening-workflows to test'
         required: false
         type: string
-        default: 'huntridge-labs/hardening-workflows'
+        default: '1blt/hardening-workflows'
       workflow_ref:
         description: 'Branch/tag of hardening-workflows to test'
         required: false
         type: string
-        default: 'feat/zap-scanner'
+        default: 'feat/zap-scanner-fixes-250112'
   schedule:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
@@ -41,7 +41,7 @@ jobs:
   test-zap-url-testfire:
     name: ZAP URL Mode - Altoro Mutual (testfire.net)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'url'
@@ -53,7 +53,7 @@ jobs:
     name: ZAP Full Scan - Altoro Mutual
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
     needs: test-zap-url-testfire
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'url'
@@ -65,7 +65,7 @@ jobs:
   test-zap-baseline:
     name: ZAP Baseline Scan - Juice Shop
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -79,7 +79,7 @@ jobs:
     name: ZAP Full Scan - Juice Shop
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
     needs: test-zap-baseline
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -93,7 +93,7 @@ jobs:
     name: ZAP API Scan - Juice Shop
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
     needs: test-zap-full
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -108,7 +108,7 @@ jobs:
   test-zap-dvwa-baseline:
     name: ZAP Baseline - DVWA
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -122,7 +122,7 @@ jobs:
     name: ZAP Full Scan - DVWA
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
     needs: test-zap-dvwa-baseline
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -136,7 +136,7 @@ jobs:
   test-zap-podinfo-baseline:
     name: ZAP Baseline - Podinfo (Clean App)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -150,7 +150,7 @@ jobs:
   test-zap-compose:
     name: ZAP Compose Mode - Multiple Services
     if: inputs.test_suite == 'all' || inputs.test_suite == 'scan-modes'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'compose'
@@ -163,7 +163,7 @@ jobs:
   test-threshold-none:
     name: Threshold None (Should Pass)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'docker-run'
@@ -178,7 +178,7 @@ jobs:
     name: Threshold Informational (Should Fail)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
     needs: test-threshold-none
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     continue-on-error: true
     with:
       scanners: 'zap'
@@ -194,7 +194,7 @@ jobs:
     name: Threshold Low (Should Fail)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
     needs: test-threshold-informational
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     continue-on-error: true
     with:
       scanners: 'zap'
@@ -210,7 +210,7 @@ jobs:
     name: Threshold Medium (Should Fail)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
     needs: test-threshold-low
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     continue-on-error: true
     with:
       scanners: 'zap'
@@ -226,7 +226,7 @@ jobs:
     name: Threshold High (May Pass or Fail)
     if: inputs.test_suite == 'all' || inputs.test_suite == 'thresholds'
     needs: test-threshold-medium
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     continue-on-error: true
     with:
       scanners: 'zap'
@@ -242,7 +242,7 @@ jobs:
   test-zap-opt-in:
     name: ZAP is Opt-In (not in 'all')
     if: inputs.test_suite == 'all' || inputs.test_suite == 'integration'
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'all'
     secrets: inherit
@@ -251,7 +251,7 @@ jobs:
     name: ZAP + Other Scanners
     if: inputs.test_suite == 'all' || inputs.test_suite == 'integration'
     needs: test-zap-opt-in
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'trivy,semgrep,zap'
       zap_scan_mode: 'url'
@@ -263,7 +263,7 @@ jobs:
     name: ZAP Only
     if: inputs.test_suite == 'all' || inputs.test_suite == 'integration'
     needs: test-zap-with-other-scanners
-    uses: ${{ inputs.workflow_repository || 'huntridge-labs/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner' }}
+    uses: ${{ inputs.workflow_repository || '1blt/hardening-workflows' }}/.github/workflows/reusable-security-hardening.yml@${{ inputs.workflow_ref || 'feat/zap-scanner-fixes-250112' }}
     with:
       scanners: 'zap'
       zap_scan_mode: 'url'
