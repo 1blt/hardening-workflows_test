@@ -61,7 +61,7 @@ jobs:
       zap_scan_mode: 'url'
       zap_scan_type: 'api'
       zap_target_urls: 'https://petstore.swagger.io/v2'
-      zap_api_spec_url: 'https://petstore.swagger.io/v2/swagger.json'
+      zap_api_spec: 'https://petstore.swagger.io/v2/swagger.json'
       allow_failure: true
     secrets: inherit
 
@@ -166,7 +166,7 @@ jobs:
       zap_scan_mode: 'url'
       zap_scan_type: 'baseline'
       zap_target_urls: 'http://testphp.vulnweb.com'
-      zap_failure_threshold: 'none'
+      severity_threshold: 'none'
       allow_failure: true
     secrets: inherit
 
@@ -179,7 +179,7 @@ jobs:
       zap_scan_mode: 'url'
       zap_scan_type: 'baseline'
       zap_target_urls: 'http://testphp.vulnweb.com'
-      zap_failure_threshold: 'informational'
+      severity_threshold: 'informational'
       allow_failure: true
     secrets: inherit
 
@@ -192,7 +192,7 @@ jobs:
       zap_scan_mode: 'url'
       zap_scan_type: 'baseline'
       zap_target_urls: 'http://testphp.vulnweb.com'
-      zap_failure_threshold: 'low'
+      severity_threshold: 'low'
       allow_failure: true
     secrets: inherit
 
@@ -205,7 +205,7 @@ jobs:
       zap_scan_mode: 'url'
       zap_scan_type: 'baseline'
       zap_target_urls: 'http://testphp.vulnweb.com'
-      zap_failure_threshold: 'medium'
+      severity_threshold: 'medium'
       allow_failure: true
     secrets: inherit
 
@@ -218,7 +218,7 @@ jobs:
       zap_scan_mode: 'url'
       zap_scan_type: 'baseline'
       zap_target_urls: 'http://testphp.vulnweb.com'
-      zap_failure_threshold: 'high'
+      severity_threshold: 'high'
       allow_failure: true
     secrets: inherit
 
