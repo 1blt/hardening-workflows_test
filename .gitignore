@@ -5,9 +5,6 @@
 *.xml
 !README.md
 !docs/*.md
-!TESTING-SUMMARY.md
-!SETUP-INSTRUCTIONS.md
-!HRL-ZAP-CONFIGURATION-REPORT.md
 
 # Test Results
 test-results/
