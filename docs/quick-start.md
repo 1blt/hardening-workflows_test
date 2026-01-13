@@ -63,7 +63,7 @@ gh workflow run run-all-tests.yml --field test_suite=integration
 
 ## Step 5: Track Progress
 
-1. Open `test-checklist.csv` in Excel/Google Sheets
+1. Open `data/test-checklist.csv` in Excel/Google Sheets
 2. Filter by test category
 3. Mark tests as PASS/FAIL/SKIP as you validate
 4. Use the Status column to track progress
@@ -182,12 +182,12 @@ bash .github/scripts/validate-zap-results.sh zap-report.json
 1. **Review Results**: Check that expected vulnerabilities were found
 2. **Test Thresholds**: Verify failure logic works correctly
 3. **Test Integration**: Ensure ZAP is opt-in and works with other scanners
-4. **Complete Checklist**: Work through test-checklist.csv
+4. **Complete Checklist**: Work through data/test-checklist.csv
 5. **Document Issues**: Note any problems in the CSV or create GitHub issues
 
 ## Need Help?
 
 - Review full documentation: [README.md](../README.md)
 - PR Review Guide: [pr-review-guide.md](pr-review-guide.md)
-- Test Checklist: [test-checklist.csv](../test-checklist.csv)
+- Test Checklist: [data/test-checklist.csv](../data/test-checklist.csv)
 - Original PR: [PR #101](https://github.com/huntridge-labs/hardening-workflows/pull/101)

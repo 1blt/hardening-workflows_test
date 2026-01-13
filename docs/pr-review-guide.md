@@ -179,7 +179,7 @@ Test error scenarios:
 
 ## Using the Test Checklist CSV
 
-1. Open `test-checklist.csv` in your spreadsheet tool
+1. Open `data/test-checklist.csv` in your spreadsheet tool
 2. Work through each test systematically
 3. Mark status as:
    - `PASS` - Test passed as expected
@@ -226,7 +226,7 @@ Before approving:
 - [ ] Security review completed
 - [ ] Performance is acceptable
 - [ ] No breaking changes identified
-- [ ] test-checklist.csv shows >90% pass rate
+- [ ] data/test-checklist.csv shows >90% pass rate
 - [ ] Team consensus on approval
 
 ## Rejection Criteria
@@ -254,6 +254,6 @@ After approval:
 ## References
 
 - [PR #101](https://github.com/huntridge-labs/hardening-workflows/pull/101)
-- [Test Checklist CSV](../test-checklist.csv)
+- [Test Checklist CSV](../data/test-checklist.csv)
 - [ZAP Documentation](https://www.zaproxy.org/docs/)
 - [Hardening Workflows Repository](https://github.com/huntridge-labs/hardening-workflows)

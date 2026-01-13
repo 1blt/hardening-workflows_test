@@ -57,7 +57,7 @@ This repository contains a complete test suite for validating PR #101 (ZAP DAST 
 
 #### 🚀 Local Testing Tools
 
-1. **local-test.sh** - Local ZAP testing script
+1. **code/local-test.sh** - Local ZAP testing script
    - Quick debugging without GitHub Actions
    - Supports all test targets
    - Automated container management
@@ -106,7 +106,7 @@ Using **existing, maintained containers** (no custom code):
 - **docs/quick-start.md** - 5-minute setup guide
 - **docs/local-testing.md** - Local testing guide
 - **docs/pr-review-guide.md** - PR review methodology
-- **test-checklist.csv** - Complete test checklist (72 tests)
+- **data/test-checklist.csv** - Complete test checklist (72 tests)
 - **TESTING-SUMMARY.md** - This file
 
 ## How to Use
@@ -141,7 +141,7 @@ gh run download <run-id>
 .github/scripts/validate-zap-results.sh zap-report.json
 
 # Track in checklist
-open test-checklist.csv
+open data/test-checklist.csv
 # Mark tests as PASS/FAIL/SKIP
 ```
 
@@ -276,9 +276,9 @@ PR #101 should be rejected if:
 ```
 .
 ├── README.md                                    # Main documentation
-├── test-checklist.csv                           # 72 test cases
+├── data/test-checklist.csv                           # 72 test cases
 ├── Makefile                                     # Convenience commands
-├── local-test.sh                                # Local testing script
+├── code/local-test.sh                                # Local testing script
 ├── docker-compose.yml                           # Test app composition
 ├── docker-compose.local.yml                     # Local test environment
 ├── TESTING-SUMMARY.md                           # This file
@@ -356,7 +356,7 @@ PR #101 should be rejected if:
    ```
 
 4. **Track Progress**
-   - Open `test-checklist.csv`
+   - Open `data/test-checklist.csv`
    - Mark tests as PASS/FAIL
    - Calculate pass rate
 
@@ -370,7 +370,7 @@ PR #101 should be rejected if:
 - **Quick Start:** `docs/quick-start.md`
 - **Local Testing:** `docs/local-testing.md`
 - **PR Review:** `docs/pr-review-guide.md`
-- **Test Checklist:** `test-checklist.csv`
+- **Test Checklist:** `data/test-checklist.csv`
 - **Help:** `make help`
 
 ## PR #101 Reference

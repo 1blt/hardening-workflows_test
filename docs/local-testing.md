@@ -27,19 +27,19 @@ This guide covers running ZAP scans locally for quick debugging and iteration.
 
 ```bash
 # Make script executable
-chmod +x local-test.sh
+chmod +x code/local-test.sh
 
 # Test Juice Shop with baseline scan
-./local-test.sh
+./code/local-test.sh
 
 # Test DVWA with full scan
-TARGET=dvwa SCAN_TYPE=full ./local-test.sh
+TARGET=dvwa SCAN_TYPE=full ./code/local-test.sh
 
 # Test Podinfo with baseline scan
-TARGET=podinfo ./local-test.sh
+TARGET=podinfo ./code/local-test.sh
 
 # Test external site
-TARGET=testfire SCAN_TYPE=baseline ./local-test.sh
+TARGET=testfire SCAN_TYPE=baseline ./code/local-test.sh
 ```
 
 ### Option 2: Docker Compose (Interactive)
@@ -90,25 +90,25 @@ docker rm juiceshop
 
 ### Juice Shop (Comprehensive)
 ```bash
-TARGET=juiceshop SCAN_TYPE=baseline ./local-test.sh
-TARGET=juiceshop SCAN_TYPE=full ./local-test.sh
-TARGET=juiceshop SCAN_TYPE=api ./local-test.sh
+TARGET=juiceshop SCAN_TYPE=baseline ./code/local-test.sh
+TARGET=juiceshop SCAN_TYPE=full ./code/local-test.sh
+TARGET=juiceshop SCAN_TYPE=api ./code/local-test.sh
 ```
 
 ### DVWA (Classic Vulnerabilities)
 ```bash
-TARGET=dvwa SCAN_TYPE=baseline ./local-test.sh
-TARGET=dvwa SCAN_TYPE=full ./local-test.sh
+TARGET=dvwa SCAN_TYPE=baseline ./code/local-test.sh
+TARGET=dvwa SCAN_TYPE=full ./code/local-test.sh
 ```
 
 ### Podinfo (Clean App)
 ```bash
-TARGET=podinfo SCAN_TYPE=baseline ./local-test.sh
+TARGET=podinfo SCAN_TYPE=baseline ./code/local-test.sh
 ```
 
 ### Testfire (External)
 ```bash
-TARGET=testfire SCAN_TYPE=baseline ./local-test.sh
+TARGET=testfire SCAN_TYPE=baseline ./code/local-test.sh
 ```
 
 ## Scan Types
@@ -120,7 +120,7 @@ TARGET=testfire SCAN_TYPE=baseline ./local-test.sh
 - Doesn't find: XSS, SQLi (requires active probing)
 
 ```bash
-SCAN_TYPE=baseline ./local-test.sh
+SCAN_TYPE=baseline ./code/local-test.sh
 ```
 
 ### Full (Comprehensive, Active)
@@ -130,7 +130,7 @@ SCAN_TYPE=baseline ./local-test.sh
 - Finds: XSS, SQLi, command injection, etc.
 
 ```bash
-SCAN_TYPE=full ./local-test.sh
+SCAN_TYPE=full ./code/local-test.sh
 ```
 
 ### API (OpenAPI/Swagger)
@@ -140,7 +140,7 @@ SCAN_TYPE=full ./local-test.sh
 - Tests all endpoints
 
 ```bash
-SCAN_TYPE=api TARGET=juiceshop ./local-test.sh
+SCAN_TYPE=api TARGET=juiceshop ./code/local-test.sh
 ```
 
 ## Validating Results
@@ -246,7 +246,7 @@ Common causes:
 chmod -R 755 local-reports
 
 # Or run with sudo (not recommended)
-sudo ./local-test.sh
+sudo ./code/local-test.sh
 ```
 
 ## Advanced Usage
@@ -274,13 +274,13 @@ docker run --rm \
 Test multiple targets simultaneously:
 ```bash
 # Terminal 1
-TARGET=juiceshop OUTPUT_DIR=./reports/juice ./local-test.sh &
+TARGET=juiceshop OUTPUT_DIR=./reports/juice ./code/local-test.sh &
 
 # Terminal 2
-TARGET=dvwa OUTPUT_DIR=./reports/dvwa ./local-test.sh &
+TARGET=dvwa OUTPUT_DIR=./reports/dvwa ./code/local-test.sh &
 
 # Terminal 3
-TARGET=podinfo OUTPUT_DIR=./reports/podinfo ./local-test.sh &
+TARGET=podinfo OUTPUT_DIR=./reports/podinfo ./code/local-test.sh &
 
 # Wait for all
 wait
@@ -337,7 +337,7 @@ docker run --rm \
 
 ```bash
 # 1. Quick local test (development)
-./local-test.sh
+./code/local-test.sh
 # Look at results, iterate
 
 # 2. Test on GitHub (validation)
@@ -348,7 +348,7 @@ gh run download <run-id>
 .github/scripts/validate-zap-results.sh zap-report.json
 
 # 4. Mark in checklist
-# Open test-checklist.csv, mark as PASS/FAIL
+# Open data/test-checklist.csv, mark as PASS/FAIL
 
 # 5. If pass, approve PR
 # If fail, debug locally and repeat
@@ -375,4 +375,4 @@ docker-compose -f docker-compose.local.yml down -v
 - Run local tests to understand ZAP behavior
 - Use GitHub Actions for PR #101 validation
 - Compare local vs Actions results
-- Document any differences in test-checklist.csv
+- Document any differences in data/test-checklist.csv

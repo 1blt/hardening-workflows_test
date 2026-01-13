@@ -65,12 +65,12 @@ Local testing is useful for:
 
 ```bash
 # Quick test
-./local-test.sh
+./code/local-test.sh
 
 # Test specific target
-TARGET=juiceshop SCAN_TYPE=baseline ./local-test.sh
-TARGET=dvwa SCAN_TYPE=full ./local-test.sh
-TARGET=podinfo ./local-test.sh
+TARGET=juiceshop SCAN_TYPE=baseline ./code/local-test.sh
+TARGET=dvwa SCAN_TYPE=full ./code/local-test.sh
+TARGET=podinfo ./code/local-test.sh
 
 # Interactive testing with ZAP UI
 docker-compose -f docker-compose.local.yml up -d
@@ -118,7 +118,7 @@ chmod +x .github/scripts/validate-zap-results.sh
 
 ### Manual Validation Checklist
 
-See `test-checklist.csv` for the comprehensive test checklist with 70+ validation points covering:
+See `data/test-checklist.csv` for the comprehensive test checklist with 70+ validation points covering:
 
 1. **Scan Mode Verification** (5 tests)
 2. **Scan Type Verification** (7 tests)
@@ -137,7 +137,7 @@ See `test-checklist.csv` for the comprehensive test checklist with 70+ validatio
 
 ## Test Checklist CSV
 
-The `test-checklist.csv` file contains:
+The `data/test-checklist.csv` file contains:
 - **Category**: Test grouping
 - **Test ID**: Unique identifier
 - **Test Name**: Short description
@@ -226,7 +226,7 @@ uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-har
 
 When adding new tests:
 1. Use existing containers when possible
-2. Add entry to `test-checklist.csv`
+2. Add entry to `data/test-checklist.csv`
 3. Include expected vulnerabilities file if needed
 4. Document validation criteria
 5. Update this README

@@ -26,34 +26,34 @@ help:
 
 setup:
 	@echo "Setting up test environment..."
-	chmod +x local-test.sh
+	chmod +x code/*.sh
 	chmod +x .github/scripts/*.sh
 	mkdir -p local-reports
-	@echo "✅ Setup complete!"
+	@echo "Setup complete!"
 
 # Local testing targets
 test-local:
-	./local-test.sh
+	./code/local-test.sh
 
 test-juiceshop:
 	@echo "Testing Juice Shop locally..."
-	TARGET=juiceshop SCAN_TYPE=baseline ./local-test.sh
+	TARGET=juiceshop SCAN_TYPE=baseline ./code/local-test.sh
 
 test-juiceshop-full:
 	@echo "Full scan of Juice Shop (this takes ~15 min)..."
-	TARGET=juiceshop SCAN_TYPE=full ./local-test.sh
+	TARGET=juiceshop SCAN_TYPE=full ./code/local-test.sh
 
 test-dvwa:
 	@echo "Testing DVWA locally..."
-	TARGET=dvwa SCAN_TYPE=baseline ./local-test.sh
+	TARGET=dvwa SCAN_TYPE=baseline ./code/local-test.sh
 
 test-podinfo:
 	@echo "Testing Podinfo locally..."
-	TARGET=podinfo SCAN_TYPE=baseline ./local-test.sh
+	TARGET=podinfo SCAN_TYPE=baseline ./code/local-test.sh
 
 test-testfire:
 	@echo "Testing external target (testfire.net)..."
-	TARGET=testfire SCAN_TYPE=baseline ./local-test.sh
+	TARGET=testfire SCAN_TYPE=baseline ./code/local-test.sh
 
 # GitHub Actions targets
 test-github:
@@ -156,11 +156,11 @@ open-report:
 # Checklist management
 checklist:
 	@if command -v open >/dev/null 2>&1; then \
-		open test-checklist.csv; \
+		open data/test-checklist.csv; \
 	elif command -v xdg-open >/dev/null 2>&1; then \
-		xdg-open test-checklist.csv; \
+		xdg-open data/test-checklist.csv; \
 	else \
-		echo "Open test-checklist.csv in your spreadsheet application"; \
+		echo "Open data/test-checklist.csv in your spreadsheet application"; \
 	fi
 
 # Documentation

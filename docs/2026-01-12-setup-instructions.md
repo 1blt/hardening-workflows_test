@@ -200,7 +200,7 @@ In GitHub Actions UI, you'll see:
 
 1. Download artifacts: `gh run download <run-id>`
 2. Validate results: `.github/scripts/validate-zap-results.sh zap-report.json`
-3. Open checklist: `open test-checklist.csv`
+3. Open checklist: `open data/test-checklist.csv`
 4. Mark test as PASS/FAIL
 5. Run more tests
 6. Complete the full test suite
