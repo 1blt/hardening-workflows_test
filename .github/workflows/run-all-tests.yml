@@ -115,11 +115,11 @@ jobs:
     secrets: inherit
 
   # =============================================================================
-  # CONFIGURATION TEST REPORT
+  # GO/NO-GO DETERMINATION REPORT
   # =============================================================================
 
   test-summary:
-    name: Configuration Test Report
+    name: GO/NO-GO Determination
     runs-on: ubuntu-latest
     needs:
       - test-url-baseline
@@ -130,80 +130,215 @@ jobs:
       - test-threshold-high
     if: always()
     steps:
-      - name: Generate Configuration Test Report
+      - name: Generate GO/NO-GO Report
+        env:
+          TEST1: ${{ needs.test-url-baseline.result }}
+          TEST2: ${{ needs.test-url-full.result }}
+          TEST3: ${{ needs.test-url-api.result }}
+          TEST4: ${{ needs.test-docker-baseline.result }}
+          TEST5: ${{ needs.test-threshold-none.result }}
+          TEST6: ${{ needs.test-threshold-high.result }}
         run: |
-          echo "# HRL ZAP Scanner Configuration Test Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Testing **huntridge-labs/hardening-workflows@feat/zap-scanner**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| # | Test | Configuration | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|------|---------------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 1 | URL + Baseline | mode=url, type=baseline | ${{ needs.test-url-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 2 | URL + Full Scan | mode=url, type=full | ${{ needs.test-url-full.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 3 | URL + API Scan | mode=url, type=api | ${{ needs.test-url-api.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | Docker + Baseline | mode=docker-run, type=baseline | ${{ needs.test-docker-baseline.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 5 | Threshold None | severity_threshold=none | ${{ needs.test-threshold-none.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 6 | Threshold High | severity_threshold=high, allow_failure=false | ${{ needs.test-threshold-high.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## Coverage Matrix" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Dimension | Values Tested |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|---------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan Modes | url, docker-run |" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan Types | baseline, full, api |" >> $GITHUB_STEP_SUMMARY
-          echo "| Thresholds | none, high |" >> $GITHUB_STEP_SUMMARY
-          echo "| Failure Modes | allow_failure=true, allow_failure=false |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Summary Statistics
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
+          # Count results
           PASSED=0
           FAILED=0
           SKIPPED=0
 
-          for result in \
-            "${{ needs.test-url-baseline.result }}" \
-            "${{ needs.test-url-full.result }}" \
-            "${{ needs.test-url-api.result }}" \
-            "${{ needs.test-docker-baseline.result }}" \
-            "${{ needs.test-threshold-none.result }}" \
-            "${{ needs.test-threshold-high.result }}"; do
+          for result in "$TEST1" "$TEST2" "$TEST3" "$TEST4" "$TEST5" "$TEST6"; do
             case "$result" in
-              success) ((PASSED++)) ;;
-              failure) ((FAILED++)) ;;
-              skipped) ((SKIPPED++)) ;;
+              success) PASSED=$((PASSED + 1)) ;;
+              failure) FAILED=$((FAILED + 1)) ;;
+              skipped) SKIPPED=$((SKIPPED + 1)) ;;
             esac
           done
 
           TOTAL=$((PASSED + FAILED + SKIPPED))
+          PASS_RATE=$((PASSED * 100 / TOTAL))
 
-          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          # Determine GO/NO-GO (require >= 80% pass rate for GO)
+          if [ $PASS_RATE -ge 80 ]; then
+            DECISION="GO"
+            DECISION_ICON="[PASS]"
+            DECISION_COLOR="green"
+          else
+            DECISION="NO-GO"
+            DECISION_ICON="[FAIL]"
+            DECISION_COLOR="red"
+          fi
+
+          # ===========================================
+          # HEADER - GO/NO-GO DETERMINATION
+          # ===========================================
+          echo "# $DECISION_ICON DETERMINATION: $DECISION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** \`huntridge-labs/hardening-workflows@feat/zap-scanner\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Pass Rate:** $PASSED/$TOTAL ($PASS_RATE%)" >> $GITHUB_STEP_SUMMARY
+          echo "**Threshold for GO:** 80%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$DECISION" = "NO-GO" ]; then
+            echo "> **Action Required:** The HRL ZAP scanner workflow has critical issues that must be resolved before deployment." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "> **Status:** The HRL ZAP scanner workflow meets minimum requirements for deployment." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ===========================================
+          # TEST RESULTS TABLE
+          # ===========================================
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| # | Test | Configuration | Target | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|------|---------------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Format results with pass/fail indicators
+          format_result() {
+            if [ "$1" = "success" ]; then echo "[PASS] success";
+            elif [ "$1" = "failure" ]; then echo "[FAIL] failure";
+            else echo "[SKIP] $1"; fi
+          }
+
+          echo "| 1 | URL + Baseline | mode=url, type=baseline | testphp.vulnweb.com | $(format_result $TEST1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | URL + Full Scan | mode=url, type=full | demo.testfire.net | $(format_result $TEST2) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3 | URL + API Scan | mode=url, type=api | petstore.swagger.io | $(format_result $TEST3) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | Docker + Baseline | mode=docker-run | juice-shop:3000 | $(format_result $TEST4) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 5 | Threshold = None | severity_threshold=none | zero.webappsecurity.com | $(format_result $TEST5) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 6 | Threshold = High | severity_threshold=high | hackazon.webscantest.com | $(format_result $TEST6) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ===========================================
+          # WHAT DIDN'T WORK (if any failures)
+          # ===========================================
+          if [ $FAILED -gt 0 ]; then
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## What Didn't Work" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$TEST1" = "failure" ]; then
+              echo "### Test 1: URL + Baseline - FAILED" >> $GITHUB_STEP_SUMMARY
+              echo "- **Configuration:** \`zap_scan_mode: url\`, \`zap_scan_type: baseline\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **Target:** http://testphp.vulnweb.com" >> $GITHUB_STEP_SUMMARY
+              echo "- **Likely Cause:** ZAP baseline scan execution failure or artifact upload conflict" >> $GITHUB_STEP_SUMMARY
+              echo "- **Evidence:** Check 'Run ZAP (baseline)' step in workflow logs" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "$TEST2" = "failure" ]; then
+              echo "### Test 2: URL + Full Scan - FAILED" >> $GITHUB_STEP_SUMMARY
+              echo "- **Configuration:** \`zap_scan_mode: url\`, \`zap_scan_type: full\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **Target:** http://demo.testfire.net" >> $GITHUB_STEP_SUMMARY
+              echo "- **Likely Cause:** Full scan timeout or target unreachable" >> $GITHUB_STEP_SUMMARY
+              echo "- **Evidence:** Check 'Run ZAP (full)' step and scan duration" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "$TEST3" = "failure" ]; then
+              echo "### Test 3: URL + API Scan - FAILED" >> $GITHUB_STEP_SUMMARY
+              echo "- **Configuration:** \`zap_scan_mode: url\`, \`zap_scan_type: api\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **Target:** https://petstore.swagger.io/v2" >> $GITHUB_STEP_SUMMARY
+              echo "- **Likely Cause:** API spec URL unreachable or 'Wait for target readiness' timeout" >> $GITHUB_STEP_SUMMARY
+              echo "- **Evidence:** Check 'Wait for target readiness' step - petstore.swagger.io may have intermittent availability" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "$TEST4" = "failure" ]; then
+              echo "### Test 4: Docker + Baseline - FAILED" >> $GITHUB_STEP_SUMMARY
+              echo "- **Configuration:** \`zap_scan_mode: docker-run\`, \`zap_scan_type: baseline\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **Target:** bkimminich/juice-shop:latest on localhost:3000" >> $GITHUB_STEP_SUMMARY
+              echo "- **Likely Cause:** Artifact name conflict when multiple ZAP jobs run in parallel" >> $GITHUB_STEP_SUMMARY
+              echo "- **Evidence:** Check for '409 Conflict: artifact already exists' error in annotations" >> $GITHUB_STEP_SUMMARY
+              echo "- **Root Issue:** HRL workflow uses non-unique artifact names (e.g., \`zap-reports-baseline-*\`)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "$TEST5" = "failure" ]; then
+              echo "### Test 5: Threshold = None - FAILED" >> $GITHUB_STEP_SUMMARY
+              echo "- **Configuration:** \`severity_threshold: none\` (should never fail on findings)" >> $GITHUB_STEP_SUMMARY
+              echo "- **Target:** http://zero.webappsecurity.com" >> $GITHUB_STEP_SUMMARY
+              echo "- **Likely Cause:** Artifact upload conflict or ZAP execution error unrelated to threshold" >> $GITHUB_STEP_SUMMARY
+              echo "- **Evidence:** Check 'Run ZAP (baseline)' and 'Upload scan summary' steps" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "$TEST6" = "failure" ]; then
+              echo "### Test 6: Threshold = High - FAILED" >> $GITHUB_STEP_SUMMARY
+              echo "- **Configuration:** \`severity_threshold: high\`, \`allow_failure: false\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **Target:** http://hackazon.webscantest.com" >> $GITHUB_STEP_SUMMARY
+              echo "- **Likely Cause:** Target URL unreachable (hackazon.webscantest.com often offline)" >> $GITHUB_STEP_SUMMARY
+              echo "- **Evidence:** Check 'Wait for target readiness' step for timeout" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # ===========================================
+            # ROOT CAUSE ANALYSIS
+            # ===========================================
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Root Cause Analysis" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Known Issues in HRL Workflow" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Artifact Name Collision (Critical)**" >> $GITHUB_STEP_SUMMARY
+            echo "   - Multiple parallel ZAP jobs create artifacts with identical names" >> $GITHUB_STEP_SUMMARY
+            echo "   - Causes: \`409 Conflict: an artifact with this name already exists\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - Fix needed: Add unique identifier (job ID or target hash) to artifact names" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Unreliable External Test Targets**" >> $GITHUB_STEP_SUMMARY
+            echo "   - hackazon.webscantest.com - frequently offline" >> $GITHUB_STEP_SUMMARY
+            echo "   - petstore.swagger.io - intermittent availability" >> $GITHUB_STEP_SUMMARY
+            echo "   - Recommendation: Use more reliable targets or self-hosted apps" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Baseline Scan Instability**" >> $GITHUB_STEP_SUMMARY
+            echo "   - Some baseline scans fail even when target is reachable" >> $GITHUB_STEP_SUMMARY
+            echo "   - May be related to artifact conflicts causing premature failure" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # ===========================================
+            # RECOMMENDATIONS
+            # ===========================================
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Recommendations" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Fix artifact naming in HRL workflow** - Add job-specific suffixes to prevent collisions" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Use reliable test targets** - Consider demo.testfire.net, testphp.vulnweb.com (more stable)" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Run tests sequentially** - As a workaround until artifact naming is fixed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # ===========================================
+          # WHAT TO LOOK AT
+          # ===========================================
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Where to Find Evidence" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Workflow Run Logs:** Click on any failed job above to see detailed logs" >> $GITHUB_STEP_SUMMARY
+          echo "2. **Annotations Tab:** Shows artifact conflict errors and other warnings" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Artifacts Tab:** Download ZAP reports that were successfully uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "4. **Key Steps to Check:**" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`Wait for target readiness\` - Target availability issues" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`Run ZAP (baseline/full/api)\` - Scan execution failures" >> $GITHUB_STEP_SUMMARY
+          echo "   - \`Upload scan summary\` - Artifact collision errors" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # ===========================================
+          # SUMMARY STATISTICS
+          # ===========================================
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Summary Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
           echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
           echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
           echo "| Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # List configurations that don't work
-          if [ $FAILED -gt 0 ]; then
-            echo "### Configurations That Don't Work" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-
-            [[ "${{ needs.test-url-baseline.result }}" == "failure" ]] && echo "- **URL + Baseline**: Basic URL scanning with baseline scan type" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.test-url-full.result }}" == "failure" ]] && echo "- **URL + Full Scan**: Active scanning with spider/crawler" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.test-url-api.result }}" == "failure" ]] && echo "- **URL + API Scan**: OpenAPI/Swagger spec scanning" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.test-docker-baseline.result }}" == "failure" ]] && echo "- **Docker + Baseline**: Container-based application scanning" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.test-threshold-none.result }}" == "failure" ]] && echo "- **Threshold None**: Report-only mode (severity_threshold=none)" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.test-threshold-high.result }}" == "failure" ]] && echo "- **Threshold High**: Strict failure mode (allow_failure=false)" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "| Pass Rate | $PASS_RATE% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Required for GO | 80% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Decision** | **$DECISION** |" >> $GITHUB_STEP_SUMMARY
