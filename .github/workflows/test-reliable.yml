@@ -1,4 +1,4 @@
-name: ZAP Reliable Test Suite
+name: ZAP Full Coverage Test
 
 on:
   workflow_dispatch:
@@ -11,45 +11,51 @@ permissions:
   id-token: write
   contents: read
 
+# Full Coverage with Minimal External Pings:
+# - 4 scans: juice-shop (Docker) - vulnerable app, tests baseline/full/thresholds
+# - 1 scan: podinfo (Docker) - clean app, validates low false-positives
+# - 1 scan: external URL - verifies URL mode works
+# Total: 6 scans, only 1 external ping
+
 jobs:
-  juice-shop:
-    name: "Juice Shop (4 scans)"
+  vulnerable-app:
+    name: "Vulnerable App (4 scans)"
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap-from-config.yml@feat/zap-scanner
     with:
-      config_file: data/zap-configs/reliable-test.yml
+      config_file: data/zap-configs/full-coverage.yml
     secrets: inherit
 
-  podinfo:
-    name: "Podinfo (1 scan)"
-    needs: juice-shop
+  clean-app:
+    name: "Clean App (1 scan)"
+    needs: vulnerable-app
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap-from-config.yml@feat/zap-scanner
     with:
-      config_file: data/zap-configs/reliable-clean.yml
+      config_file: data/zap-configs/clean-app.yml
     secrets: inherit
 
-  external:
-    name: "External URL (2 scans)"
-    needs: podinfo
+  external-url:
+    name: "External URL (1 scan)"
+    needs: clean-app
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-zap-from-config.yml@feat/zap-scanner
     with:
-      config_file: data/zap-configs/reliable-external.yml
+      config_file: data/zap-configs/url-verify.yml
     secrets: inherit
 
   report:
     name: "Final Report"
     runs-on: ubuntu-latest
-    needs: [juice-shop, podinfo, external]
+    needs: [vulnerable-app, clean-app, external-url]
     if: always()
     steps:
       - name: Generate Summary
         env:
-          JUICE: ${{ needs.juice-shop.result }}
-          POD: ${{ needs.podinfo.result }}
-          EXT: ${{ needs.external.result }}
+          VULN: ${{ needs.vulnerable-app.result }}
+          CLEAN: ${{ needs.clean-app.result }}
+          URL: ${{ needs.external-url.result }}
         run: |
           PASSED=0
           FAILED=0
-          for r in "$JUICE" "$POD" "$EXT"; do
+          for r in "$VULN" "$CLEAN" "$URL"; do
             [ "$r" = "success" ] && PASSED=$((PASSED + 1)) || FAILED=$((FAILED + 1))
           done
 
@@ -57,7 +63,7 @@ jobs:
           [ "$STATUS" = "GO" ] && ICON="[PASS]" || ICON="[FAIL]"
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          # ZAP Reliable Test Suite
+          # ZAP Full Coverage Test
 
           **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')
 
@@ -65,25 +71,36 @@ jobs:
 
           ## $ICON DETERMINATION: $STATUS
 
-          **Pass Rate:** $PASSED/3 job groups (7 total scans)
+          **Pass Rate:** $PASSED/3 job groups (6 total scans)
 
-          | Job | Scans | Target | Result |
-          |-----|-------|--------|--------|
-          | Juice Shop | 4 | localhost:3000 | $JUICE |
-          | Podinfo | 1 | localhost:9898 | $POD |
-          | External | 2 | demo.testfire.net | $EXT |
+          | Job | Scans | Target | Mode | Result |
+          |-----|-------|--------|------|--------|
+          | Vulnerable App | 4 | juice-shop | docker | $VULN |
+          | Clean App | 1 | podinfo | docker | $CLEAN |
+          | External URL | 1 | demo.testfire.net | url | $URL |
 
           ---
 
-          ### Test Coverage
+          ### Coverage Matrix
 
-          | # | Test | Type | Threshold |
-          |---|------|------|-----------|
-          | 1 | juice-baseline | baseline | none |
-          | 2 | juice-full | full | none |
-          | 3 | threshold-high | baseline | high |
-          | 4 | threshold-medium | baseline | medium |
-          | 5 | clean-baseline | baseline | medium |
-          | 6 | external-baseline | baseline | none |
-          | 7 | external-quick | baseline | none |
+          | # | Test | Type | Threshold | Target |
+          |---|------|------|-----------|--------|
+          | 1 | baseline-scan | baseline | none | juice-shop |
+          | 2 | full-scan | full | none | juice-shop |
+          | 3 | threshold-high | baseline | high | juice-shop |
+          | 4 | threshold-medium | baseline | medium | juice-shop |
+          | 5 | clean-app | baseline | medium | podinfo |
+          | 6 | external-url | baseline | none | testfire.net |
+
+          ---
+
+          ### Design Rationale
+
+          | Aspect | Approach |
+          |--------|----------|
+          | External pings | Only 1 (verifies URL mode) |
+          | Docker tests | 5 scans (reliable, reproducible) |
+          | Scan types | baseline + full |
+          | Thresholds | none, medium, high |
+          | False positive check | podinfo (clean app) |
           EOF

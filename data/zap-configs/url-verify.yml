@@ -1,0 +1,15 @@
+# External URL Test - Single ping to verify URL mode
+#
+# Minimal external interaction - just validates URL mode works
+
+target:
+  mode: url
+
+scans:
+  # Test 6: Single external URL scan
+  - name: external-url
+    type: baseline
+    target_url: http://demo.testfire.net
+    fail_on_severity: none
+    allow_failure: true
+    max_duration_minutes: 2
