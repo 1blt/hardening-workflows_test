@@ -1,0 +1,18 @@
+# ZAP Clean App Test - Validates low false-positive rate
+#
+# podinfo is a clean Go app - should have minimal findings
+# This validates ZAP isn't reporting excessive false positives
+
+target:
+  mode: docker-run
+  image: ghcr.io/stefanprodan/podinfo:latest
+  ports: "9898:9898"
+
+scans:
+  # Test 5: Clean app baseline - should pass with threshold=medium
+  - name: clean-baseline
+    type: baseline
+    target_url: http://localhost:9898
+    fail_on_severity: medium
+    allow_failure: true
+    max_duration_minutes: 2
