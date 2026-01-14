@@ -1,11 +1,8 @@
 # ZAP DAST Scanner - Minimal Test Configuration
-# Purpose: Test HRL workflow config support with minimal target load
+# Schema: https://raw.githubusercontent.com/huntridge-labs/hardening-workflows/main/.github/schemas/zap-config.schema.json
 #
-# Target-friendly approach:
-# - Only 3 scans total (reduced from 6)
-# - All baseline scans (passive only, no active attacks)
-# - One target per scan type to verify functionality
-# - max_duration_minutes kept short
+# Target-friendly: Only 3 scans, one reliable external target, one self-contained
+# Sequential scan_groups prevent artifact collisions
 
 defaults:
   max_duration_minutes: 5
@@ -14,35 +11,30 @@ defaults:
   post_pr_comment: false
 
 scan_groups:
-  # Group 1: URL-based scans - one reliable target
+  # Group 1: URL-based scans (single reliable target)
   - name: url-scans
-    description: URL Mode Verification
+    description: URL Mode Tests
     target:
       mode: url
     scans:
-      # Test 1: Basic URL baseline scan
       - name: url-baseline
         type: baseline
         target_url: http://demo.testfire.net
-        max_duration_minutes: 3
 
-      # Test 2: Threshold enforcement works
       - name: threshold-test
         type: baseline
         target_url: http://demo.testfire.net
         fail_on_severity: high
         allow_failure: true
 
-  # Group 2: Docker-based scan - self-contained, no external load
+  # Group 2: Docker-based scan (self-contained, no external load)
   - name: docker-scans
-    description: Docker Mode Verification
+    description: Docker Mode Test
     target:
       mode: docker-run
       image: ghcr.io/stefanprodan/podinfo:latest
       ports: "9898:9898"
     scans:
-      # Test 3: Docker mode with clean app (minimal findings expected)
       - name: docker-baseline
         type: baseline
         target_url: http://localhost:9898
-        max_duration_minutes: 3

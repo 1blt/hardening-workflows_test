@@ -3,13 +3,13 @@ name: HRL ZAP Configuration Tests
 on:
   workflow_dispatch:
     inputs:
-      test_mode:
-        description: 'Test execution mode'
+      config:
+        description: 'ZAP config file to use'
         required: true
         type: choice
         options:
-          - minimal      # 3 tests, sequential, target-friendly
-          - standard     # 6 tests, parallel
+          - minimal       # 3 scans, target-friendly
+          - comprehensive # 6 scans, full coverage
         default: 'minimal'
 
 permissions:
@@ -22,249 +22,109 @@ permissions:
 
 jobs:
   # =============================================================================
-  # MINIMAL TEST MODE - Sequential, target-friendly
+  # CONFIG-BASED ZAP TESTING
   # =============================================================================
-  # Only 3 tests total:
-  # 1. URL baseline (demo.testfire.net - reliable)
-  # 2. Docker baseline (podinfo - self-contained, no external load)
-  # 3. Threshold test (reuse same target)
-  # =============================================================================
-
-  # Test 1: URL Mode + Baseline (most reliable external target)
-  test-url-baseline:
-    name: "Test 1: URL Baseline"
-    if: inputs.test_mode == 'minimal'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'baseline'
-      zap_target_urls: 'http://demo.testfire.net'
-      severity_threshold: 'none'
-      allow_failure: true
-    secrets: inherit
-
-  # Test 2: Docker Mode (self-contained - no external target load)
-  test-docker-baseline:
-    name: "Test 2: Docker Baseline"
-    if: inputs.test_mode == 'minimal'
-    needs: test-url-baseline  # Sequential to avoid artifact conflicts
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'docker-run'
-      zap_scan_type: 'baseline'
-      zap_app_image_ref: 'ghcr.io/stefanprodan/podinfo:latest'
-      zap_app_ports: '9898:9898'
-      zap_target_urls: 'http://localhost:9898'
-      severity_threshold: 'none'
-      allow_failure: true
-    secrets: inherit
-
-  # Test 3: Threshold enforcement (reuse same target as Test 1)
-  test-threshold:
-    name: "Test 3: Threshold High"
-    if: inputs.test_mode == 'minimal'
-    needs: test-docker-baseline  # Sequential
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'baseline'
-      zap_target_urls: 'http://demo.testfire.net'
-      severity_threshold: 'high'
-      allow_failure: true  # Expected to fail due to findings
-    secrets: inherit
-
-  # =============================================================================
-  # STANDARD TEST MODE - Original 6 tests (parallel, more targets)
+  # Uses scan_groups defined in config files:
+  # - minimal: 3 scans (url-baseline, threshold-test, docker-baseline)
+  # - comprehensive: 6 scans (matches PR example)
   # =============================================================================
 
-  test-std-url-baseline:
-    name: "Std 1: URL + Baseline"
-    if: inputs.test_mode == 'standard'
+  zap-scan:
+    name: "ZAP Scan (${{ inputs.config }})"
     uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
     with:
       scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'baseline'
-      zap_target_urls: 'http://testphp.vulnweb.com'
+      zap_config: ${{ github.workspace }}/data/zap-configs/${{ inputs.config }}-test.yml
       allow_failure: true
-    secrets: inherit
-
-  test-std-url-full:
-    name: "Std 2: URL + Full"
-    if: inputs.test_mode == 'standard'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'full'
-      zap_target_urls: 'http://demo.testfire.net'
-      allow_failure: true
-    secrets: inherit
-
-  test-std-url-api:
-    name: "Std 3: URL + API"
-    if: inputs.test_mode == 'standard'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'api'
-      zap_target_urls: 'https://petstore.swagger.io/v2'
-      zap_api_spec: 'https://petstore.swagger.io/v2/swagger.json'
-      allow_failure: true
-    secrets: inherit
-
-  test-std-docker:
-    name: "Std 4: Docker + Baseline"
-    if: inputs.test_mode == 'standard'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'docker-run'
-      zap_scan_type: 'baseline'
-      zap_app_image_ref: 'bkimminich/juice-shop:latest'
-      zap_app_ports: '3000:3000'
-      zap_target_urls: 'http://localhost:3000'
-      allow_failure: true
-    secrets: inherit
-
-  test-std-threshold-none:
-    name: "Std 5: Threshold None"
-    if: inputs.test_mode == 'standard'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'baseline'
-      zap_target_urls: 'http://zero.webappsecurity.com'
-      severity_threshold: 'none'
-      allow_failure: true
-    secrets: inherit
-
-  test-std-threshold-high:
-    name: "Std 6: Threshold High"
-    if: inputs.test_mode == 'standard'
-    uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@feat/zap-scanner
-    with:
-      scanners: 'zap'
-      zap_scan_mode: 'url'
-      zap_scan_type: 'baseline'
-      zap_target_urls: 'http://hackazon.webscantest.com'
-      severity_threshold: 'high'
-      allow_failure: false
     secrets: inherit
 
   # =============================================================================
   # GO/NO-GO DETERMINATION
   # =============================================================================
 
-  summary-minimal:
-    name: "GO/NO-GO (Minimal)"
+  summary:
+    name: "GO/NO-GO Report"
     runs-on: ubuntu-latest
-    needs: [test-url-baseline, test-docker-baseline, test-threshold]
-    if: always() && inputs.test_mode == 'minimal'
+    needs: [zap-scan]
+    if: always()
     steps:
+      - name: Checkout for config info
+        uses: actions/checkout@v4
+
       - name: Generate Report
         env:
-          T1: ${{ needs.test-url-baseline.result }}
-          T2: ${{ needs.test-docker-baseline.result }}
-          T3: ${{ needs.test-threshold.result }}
+          SCAN_RESULT: ${{ needs.zap-scan.result }}
+          CONFIG: ${{ inputs.config }}
         run: |
-          PASSED=0
-          FAILED=0
-          for r in "$T1" "$T2" "$T3"; do
-            [ "$r" = "success" ] && PASSED=$((PASSED + 1)) || FAILED=$((FAILED + 1))
-          done
-          TOTAL=3
-          PASS_RATE=$((PASSED * 100 / TOTAL))
-          [ $PASS_RATE -ge 66 ] && DECISION="GO" || DECISION="NO-GO"
+          # Determine GO/NO-GO
+          if [ "$SCAN_RESULT" = "success" ]; then
+            DECISION="GO"
+            ICON="[PASS]"
+          else
+            DECISION="NO-GO"
+            ICON="[FAIL]"
+          fi
 
-          echo "# $([ "$DECISION" = "GO" ] && echo '[PASS]' || echo '[FAIL]') DETERMINATION: $DECISION" >> $GITHUB_STEP_SUMMARY
+          echo "# $ICON DETERMINATION: $DECISION" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** Minimal (sequential, target-friendly)" >> $GITHUB_STEP_SUMMARY
+          echo "**Config:** \`data/zap-configs/${CONFIG}-test.yml\`" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow:** \`huntridge-labs/hardening-workflows@feat/zap-scanner\`" >> $GITHUB_STEP_SUMMARY
           echo "**Date:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "**Pass Rate:** $PASSED/$TOTAL ($PASS_RATE%)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+
+          echo "## Scan Result" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| # | Test | Config | Target | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|------|--------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 1 | URL Baseline | mode=url, threshold=none | demo.testfire.net | $([ "$T1" = "success" ] && echo '[PASS]' || echo '[FAIL]') $T1 |" >> $GITHUB_STEP_SUMMARY
-          echo "| 2 | Docker Baseline | mode=docker-run | podinfo:9898 | $([ "$T2" = "success" ] && echo '[PASS]' || echo '[FAIL]') $T2 |" >> $GITHUB_STEP_SUMMARY
-          echo "| 3 | Threshold High | threshold=high | demo.testfire.net | $([ "$T3" = "success" ] && echo '[PASS]' || echo '[FAIL]') $T3 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ZAP Scan Job | $ICON $SCAN_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Config Mode | $CONFIG |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ $FAILED -gt 0 ]; then
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Config File Contents" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+          cat "data/zap-configs/${CONFIG}-test.yml" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$SCAN_RESULT" = "failure" ]; then
             echo "---" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## Failures" >> $GITHUB_STEP_SUMMARY
+            echo "## Troubleshooting" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            [ "$T1" = "failure" ] && echo "- **Test 1 (URL Baseline):** Check 'Run ZAP' step for errors" >> $GITHUB_STEP_SUMMARY
-            [ "$T2" = "failure" ] && echo "- **Test 2 (Docker Baseline):** Check container startup or ZAP execution" >> $GITHUB_STEP_SUMMARY
-            [ "$T3" = "failure" ] && echo "- **Test 3 (Threshold):** Expected if high-severity findings exist (verify threshold logic)" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Check ZAP job logs** for scan execution errors" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Check annotations** for artifact conflicts" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Verify config syntax** matches the schema" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "## Coverage ($CONFIG mode)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Feature | Tested |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| URL scan mode | Test 1, 3 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker scan mode | Test 2 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Baseline scan type | All tests |" >> $GITHUB_STEP_SUMMARY
-          echo "| Threshold: none | Test 1, 2 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Threshold: high | Test 3 |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> **Note:** Sequential execution prevents artifact naming conflicts." >> $GITHUB_STEP_SUMMARY
 
-  summary-standard:
-    name: "GO/NO-GO (Standard)"
-    runs-on: ubuntu-latest
-    needs: [test-std-url-baseline, test-std-url-full, test-std-url-api, test-std-docker, test-std-threshold-none, test-std-threshold-high]
-    if: always() && inputs.test_mode == 'standard'
-    steps:
-      - name: Generate Report
-        env:
-          T1: ${{ needs.test-std-url-baseline.result }}
-          T2: ${{ needs.test-std-url-full.result }}
-          T3: ${{ needs.test-std-url-api.result }}
-          T4: ${{ needs.test-std-docker.result }}
-          T5: ${{ needs.test-std-threshold-none.result }}
-          T6: ${{ needs.test-std-threshold-high.result }}
-        run: |
-          PASSED=0
-          FAILED=0
-          for r in "$T1" "$T2" "$T3" "$T4" "$T5" "$T6"; do
-            [ "$r" = "success" ] && PASSED=$((PASSED + 1)) || FAILED=$((FAILED + 1))
-          done
-          TOTAL=6
-          PASS_RATE=$((PASSED * 100 / TOTAL))
-          [ $PASS_RATE -ge 80 ] && DECISION="GO" || DECISION="NO-GO"
-
-          echo "# $([ "$DECISION" = "GO" ] && echo '[PASS]' || echo '[FAIL]') DETERMINATION: $DECISION" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** Standard (parallel, comprehensive)" >> $GITHUB_STEP_SUMMARY
-          echo "**Pass Rate:** $PASSED/$TOTAL ($PASS_RATE%)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| # | Test | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 1 | URL + Baseline | $([ "$T1" = "success" ] && echo '[PASS]' || echo '[FAIL]') |" >> $GITHUB_STEP_SUMMARY
-          echo "| 2 | URL + Full | $([ "$T2" = "success" ] && echo '[PASS]' || echo '[FAIL]') |" >> $GITHUB_STEP_SUMMARY
-          echo "| 3 | URL + API | $([ "$T3" = "success" ] && echo '[PASS]' || echo '[FAIL]') |" >> $GITHUB_STEP_SUMMARY
-          echo "| 4 | Docker + Baseline | $([ "$T4" = "success" ] && echo '[PASS]' || echo '[FAIL]') |" >> $GITHUB_STEP_SUMMARY
-          echo "| 5 | Threshold None | $([ "$T5" = "success" ] && echo '[PASS]' || echo '[FAIL]') |" >> $GITHUB_STEP_SUMMARY
-          echo "| 6 | Threshold High | $([ "$T6" = "success" ] && echo '[PASS]' || echo '[FAIL]') |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> **Warning:** Standard mode runs tests in parallel which may cause artifact conflicts." >> $GITHUB_STEP_SUMMARY
+          if [ "$CONFIG" = "minimal" ]; then
+            echo "| Feature | Tested |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| URL scan mode | url-baseline, threshold-test |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker scan mode | docker-baseline |" >> $GITHUB_STEP_SUMMARY
+            echo "| Baseline scan type | All scans |" >> $GITHUB_STEP_SUMMARY
+            echo "| Threshold: none | url-baseline, docker-baseline |" >> $GITHUB_STEP_SUMMARY
+            echo "| Threshold: high | threshold-test |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> **Note:** Minimal config uses only demo.testfire.net + podinfo to minimize external load." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Feature | Tested |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| URL scan mode | url-baseline, url-full, url-api, threshold-* |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docker scan mode | docker-baseline |" >> $GITHUB_STEP_SUMMARY
+            echo "| Baseline scan | url-baseline, threshold-*, docker-baseline |" >> $GITHUB_STEP_SUMMARY
+            echo "| Full scan | url-full |" >> $GITHUB_STEP_SUMMARY
+            echo "| API scan | url-api |" >> $GITHUB_STEP_SUMMARY
+            echo "| Threshold: none | url-baseline, threshold-none |" >> $GITHUB_STEP_SUMMARY
+            echo "| Threshold: high | threshold-high |" >> $GITHUB_STEP_SUMMARY
+          fi
