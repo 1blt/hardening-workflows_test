@@ -10,10 +10,12 @@ on:
       - main
 
 permissions:
-  actions: read
   contents: read
-  pull-requests: write
   security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+  id-token: write
 
 jobs:
   security-scan:
@@ -22,7 +24,7 @@ jobs:
     with:
       scanners: 'gitleaks'
       post_pr_comment: true
-      allow_failure: true  # Don't fail the workflow, we just want to verify comment is posted
+      allow_failure: true
     secrets: inherit
 
   verify-pr-comment:
