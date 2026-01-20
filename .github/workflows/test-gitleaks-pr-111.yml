@@ -1,10 +1,13 @@
 name: Test Gitleaks PR #111 Fix
 
+# This tests the fix for: PR summary missing status when secrets found
+# The bug: gitleaks exits non-zero which blocked the PR comment step from running
+# The fix: PR comment/summary should now be posted even when secrets are detected
+
 on:
-  workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - test/gitleaks-pr-111
+      - main
 
 permissions:
   actions: read
@@ -13,66 +16,10 @@ permissions:
   security-events: write
 
 jobs:
-  # Test 1: Verify summary is generated when secrets found (bug fix)
-  # Expected: Job should complete all steps including summary, then fail at analysis
-  test-secret-detection:
-    name: "Test: Secret Detection with Summary"
+  gitleaks-scan:
+    name: "Gitleaks (PR Comment Test)"
     uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@fix/gitleaks-PR-comment
     with:
+      post_pr_comment: true
       fail_on_severity: low
     secrets: inherit
-
-  # Test 2: Verify fail_on_severity=none allows passing
-  # Expected: Job should pass even with secrets present
-  test-no-fail:
-    name: "Test: No Fail Mode"
-    uses: huntridge-labs/hardening-workflows/.github/workflows/scanner-gitleaks.yml@fix/gitleaks-PR-comment
-    with:
-      fail_on_severity: none
-    secrets: inherit
-
-  summary:
-    name: "Test Results"
-    runs-on: ubuntu-latest
-    needs: [test-secret-detection, test-no-fail]
-    if: always()
-    steps:
-      - name: Evaluate Results
-        env:
-          SECRET_TEST: ${{ needs.test-secret-detection.result }}
-          NO_FAIL_TEST: ${{ needs.test-no-fail.result }}
-        run: |
-          echo "# Gitleaks PR #111 Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Bug Fix Verification" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Test | Expected | Actual | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|----------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          # Test 1: Should fail (secrets detected + fail_on_severity=low)
-          if [ "$SECRET_TEST" = "failure" ]; then
-            echo "| Secret Detection | failure | $SECRET_TEST | PASS |" >> $GITHUB_STEP_SUMMARY
-            TEST1_PASS=true
-          else
-            echo "| Secret Detection | failure | $SECRET_TEST | FAIL |" >> $GITHUB_STEP_SUMMARY
-            TEST1_PASS=false
-          fi
-
-          # Test 2: Should succeed (fail_on_severity=none)
-          if [ "$NO_FAIL_TEST" = "success" ]; then
-            echo "| No Fail Mode | success | $NO_FAIL_TEST | PASS |" >> $GITHUB_STEP_SUMMARY
-            TEST2_PASS=true
-          else
-            echo "| No Fail Mode | success | $NO_FAIL_TEST | FAIL |" >> $GITHUB_STEP_SUMMARY
-            TEST2_PASS=false
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Summary" >> $GITHUB_STEP_SUMMARY
-
-          if [ "$TEST1_PASS" = "true" ] && [ "$TEST2_PASS" = "true" ]; then
-            echo "All tests passed - PR #111 fix verified" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Some tests failed - PR fix may have issues" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
