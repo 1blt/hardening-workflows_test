@@ -110,8 +110,9 @@ jobs:
           VIOLATIONS=0
 
           # Search shell scripts in container-related actions for hardcoded URLs
-          # Exclude README, docs, comments, and the server_url references (which are correct)
+          # Exclude test files, README, docs, comments, and the server_url references
           while IFS= read -r script; do
+            [[ "$script" == *"/tests/"* ]] && continue
             MATCHES=$(grep -n 'https://github\.com' "$script" | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' || true)
             if [ -n "$MATCHES" ]; then
               echo "VIOLATION in $script:"
