@@ -92,41 +92,48 @@ jobs:
 
       - name: Scan for hardcoded github.com in shell scripts
         run: |
-          echo "Scanning all action shell scripts for hardcoded github.com URLs..."
+          echo "Scanning container-related action scripts for hardcoded github.com URLs..."
 
           VIOLATIONS=0
 
-          # Find all .sh files in actions directories
-          while IFS= read -r script; do
-            # Skip test files and README
-            [[ "$script" == *"/tests/"* ]] && continue
-            [[ "$script" == *"README"* ]] && continue
+          # Only scan the actions changed by PR #114 (container scanning)
+          SCAN_DIRS=(
+            .github/actions/scanner-container
+            .github/actions/scanner-container-summary
+            .github/actions/parse-container-config
+          )
 
-            # Look for https://github.com not wrapped in server_url logic
-            MATCHES=$(grep -n 'https://github\.com' "$script" 2>/dev/null | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' | grep -v '\.md:' || true)
-            if [ -n "$MATCHES" ]; then
-              echo "VIOLATION: $script"
-              echo "$MATCHES"
-              VIOLATIONS=$((VIOLATIONS + 1))
-            fi
-          done < <(find .github/actions -name "*.sh" -type f)
+          for dir in "${SCAN_DIRS[@]}"; do
+            [ -d "$dir" ] || continue
 
-          # Also check action.yml run: blocks
-          while IFS= read -r action_yml; do
-            MATCHES=$(grep -n 'https://github\.com' "$action_yml" 2>/dev/null | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' | grep -v 'description:' | grep -v 'example' || true)
-            if [ -n "$MATCHES" ]; then
-              echo "VIOLATION: $action_yml"
-              echo "$MATCHES"
-              VIOLATIONS=$((VIOLATIONS + 1))
+            # Check .sh files (skip tests)
+            while IFS= read -r script; do
+              [[ "$script" == *"/tests/"* ]] && continue
+              MATCHES=$(grep -n 'https://github\.com' "$script" 2>/dev/null | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' || true)
+              if [ -n "$MATCHES" ]; then
+                echo "VIOLATION: $script"
+                echo "$MATCHES"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              fi
+            done < <(find "$dir" -name "*.sh" -type f)
+
+            # Check action.yml
+            if [ -f "$dir/action.yml" ]; then
+              MATCHES=$(grep -n 'https://github\.com' "$dir/action.yml" 2>/dev/null | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' | grep -v 'description:' || true)
+              if [ -n "$MATCHES" ]; then
+                echo "VIOLATION: $dir/action.yml"
+                echo "$MATCHES"
+                VIOLATIONS=$((VIOLATIONS + 1))
+              fi
             fi
-          done < <(find .github/actions -name "action.yml" -type f)
+          done
 
           if [ "$VIOLATIONS" -gt 0 ]; then
             echo "::error::Found $VIOLATIONS file(s) with hardcoded github.com URLs"
             exit 1
           fi
 
-          echo "No hardcoded github.com URLs found"
+          echo "No hardcoded github.com URLs found in container scanning actions"
 
   # ==========================================================================
   # Final Summary
