@@ -1,0 +1,12 @@
+containers:
+  - name: full-options-test
+    image: nginx:1.25
+    registry:
+      host: docker.io
+      username: testuser
+      auth_secret: DOCKERHUB_TOKEN
+    scanners: [trivy, grype, syft]
+    enable_code_security: false
+    fail_on_severity: high
+    allow_failure: true
+    post_pr_comment: false

@@ -1,0 +1,10 @@
+containers:
+  - name: structured-test
+    image:
+      repository: library
+      name: nginx
+      tag: "1.25"
+    registry:
+      host: docker.io
+    scanners: [trivy]
+    fail_on_severity: none

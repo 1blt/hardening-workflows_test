@@ -1,0 +1,7 @@
+containers:
+  - name: same-name
+    image: alpine:latest
+    scanners: [trivy]
+  - name: same-name
+    image: nginx:latest
+    scanners: [grype]

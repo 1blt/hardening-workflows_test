@@ -1,0 +1,140 @@
+name: "Discover Mode Tests"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  packages: read
+  pull-requests: write
+
+# ============================================================================
+# Discover mode tests: container-scan.yml finds Dockerfiles in this repo
+#
+# This repo has 3 Dockerfiles under tests/dockerfiles/:
+#   - good/Dockerfile      (FROM alpine:3.18 — builds and scans)
+#   - vulnerable/Dockerfile (FROM node:14-slim — builds, has CVEs)
+#   - broken/Dockerfile    (FROM nonexistent — fails to pull/build)
+#
+# The discover job uses: find . -name "Dockerfile*" -not -path "./.git/*"
+# So all 3 will be found. The broken one should fail gracefully.
+# ============================================================================
+
+jobs:
+  # --------------------------------------------------------------------------
+  # D1: Discover mixed Dockerfiles (good + vulnerable + broken)
+  # --------------------------------------------------------------------------
+  d1-discover-mixed:
+    name: "D1: discover mixed"
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/migrate-to-composite-actions
+    with:
+      scan_mode: discover
+      scanners: trivy,grype
+      fail_on_severity: none
+      allow_failure: false
+
+  # --------------------------------------------------------------------------
+  # D2: Discover with trivy only
+  # --------------------------------------------------------------------------
+  d2-discover-trivy-only:
+    name: "D2: discover trivy only"
+    needs: d1-discover-mixed
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/migrate-to-composite-actions
+    with:
+      scan_mode: discover
+      scanners: trivy
+      fail_on_severity: none
+      allow_failure: false
+
+  # --------------------------------------------------------------------------
+  # D3: Discover with severity threshold
+  # --------------------------------------------------------------------------
+  d3-discover-severity:
+    name: "D3: discover + severity"
+    needs: d2-discover-trivy-only
+    uses: huntridge-labs/hardening-workflows/.github/workflows/container-scan.yml@feat/migrate-to-composite-actions
+    with:
+      scan_mode: discover
+      scanners: trivy,grype
+      fail_on_severity: critical
+      allow_failure: false
+
+  # --------------------------------------------------------------------------
+  # Validation job
+  # --------------------------------------------------------------------------
+  validate-results:
+    name: "Validate Discover Test Results"
+    runs-on: ubuntu-latest
+    needs:
+      - d1-discover-mixed
+      - d2-discover-trivy-only
+      - d3-discover-severity
+    if: always()
+    steps:
+      - name: Validate test outcomes
+        env:
+          D1: ${{ needs.d1-discover-mixed.result }}
+          D2: ${{ needs.d2-discover-trivy-only.result }}
+          D3: ${{ needs.d3-discover-severity.result }}
+        run: |
+          FAILURES=0
+
+          check() {
+            local name="$1" got="$2" expected="$3"
+            if [ "$got" = "$expected" ]; then
+              echo "PASS $name: $got (expected $expected)"
+            else
+              echo "FAIL $name: $got (expected $expected)"
+              FAILURES=$((FAILURES + 1))
+            fi
+          }
+
+          echo "============================================"
+          echo "Discover Mode Test Validation"
+          echo "============================================"
+          echo ""
+
+          # D1: Should succeed (allow_failure handles broken build, continue-on-error on matrix)
+          check "D1 discover-mixed" "$D1" "success"
+
+          # D2: Should succeed (trivy only)
+          check "D2 discover-trivy-only" "$D2" "success"
+
+          # D3: May fail if vulnerable image has criticals
+          # Both success and failure are valid outcomes depending on node:14 CVEs
+          if [ "$D3" = "success" ] || [ "$D3" = "failure" ]; then
+            echo "PASS D3 discover-severity: $D3 (completed - threshold applied)"
+          else
+            echo "FAIL D3 discover-severity: $D3 (unexpected state)"
+            FAILURES=$((FAILURES + 1))
+          fi
+
+          echo ""
+          echo "============================================"
+          TOTAL=3
+          PASSED=$((TOTAL - FAILURES))
+          echo "Results: $PASSED/$TOTAL passed"
+          echo "============================================"
+
+          if [ "$FAILURES" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Generate summary
+        if: always()
+        env:
+          D1: ${{ needs.d1-discover-mixed.result }}
+          D2: ${{ needs.d2-discover-trivy-only.result }}
+          D3: ${{ needs.d3-discover-severity.result }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Discover Mode Test Results
+
+          | # | Test | Scanners | Severity | Result |
+          |---|------|----------|----------|--------|
+          | D1 | discover mixed | trivy,grype | none | ${D1} |
+          | D2 | discover trivy only | trivy | none | ${D2} |
+          | D3 | discover + severity | trivy,grype | critical | ${D3} |
+          EOF

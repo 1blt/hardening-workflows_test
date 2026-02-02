@@ -1,239 +1,179 @@
-# Hardening Workflows Test Suite
+# PR #114 Container Scanning Test Suite
 
-This repository provides comprehensive testing for [huntridge-labs/hardening-workflows](https://github.com/huntridge-labs/hardening-workflows), specifically for validating PR #101 (ZAP DAST Scanner Integration).
+Comprehensive test suite for [huntridge-labs/hardening-workflows PR #114](https://github.com/huntridge-labs/hardening-workflows/pull/114) — migration of container security scanning from reusable workflows to composite actions.
 
-## Purpose
+## What PR #114 Changes
 
-Test the ZAP scanner integration to ensure:
-- All scan modes work correctly (URL, Docker, Compose)
-- All scan types function properly (Baseline, Full, API)
-- Failure thresholds trigger correctly
-- Integration with existing scanners is seamless
-- Reporting and artifacts work as expected
+| Component | Purpose |
+|-----------|---------|
+| `scanner-container` | Composite action: runs trivy, grype, syft on a single image |
+| `scanner-container-summary` | Composite action: combines parallel scan results, deduplicates CVEs |
+| `parse-container-config` | Composite action: generates matrix from `container-config.yml` |
+| `container-scan.yml` | Thin wrapper workflow: discover (find Dockerfiles) or remote (scan existing images) |
+| `infrastructure-scan.yml` | Updated to use composite actions for trivy-iac + checkov |
 
-## Test Strategy
+## Execution Path
 
-This repository uses **existing, well-maintained vulnerable containers** instead of custom code:
+```mermaid
+flowchart TD
+    A[container-scan.yml] --> B{scan_mode?}
 
-- **OWASP Juice Shop** (`bkimminich/juice-shop`) - Comprehensive vulnerable web application
-- **DVWA** (`vulnerables/web-dvwa`) - Damn Vulnerable Web Application
-- **Podinfo** (`ghcr.io/stefanprodan/podinfo`) - Clean application for baseline testing
-- **Altoro Mutual** (`demo.testfire.net`) - OWASP's public test site
+    B -->|discover| C[discover-containers job]
+    C --> C1["find Dockerfile* in repo"]
+    C1 --> C2{Dockerfiles found?}
+    C2 -->|no| C3[Skip - no containers]
+    C2 -->|yes| C4["build-and-scan job (matrix)"]
 
-## Test Workflows
+    C4 --> D[docker build]
+    D --> D1{Build success?}
+    D1 -->|no| D2["continue-on-error → summary"]
+    D1 -->|yes| E
 
-### Scan Mode Tests
-- `test-zap-url-mode.yml` - Tests URL mode against external target
-- `test-zap-docker-juiceshop.yml` - Tests Docker mode with Juice Shop
-- `test-zap-docker-dvwa.yml` - Tests Docker mode with DVWA
-- `test-zap-docker-podinfo.yml` - Tests Docker mode with clean app
-- `test-zap-compose-mode.yml` - Tests Compose mode with multiple containers
+    B -->|remote| F{registry_username?}
+    F -->|yes| F1[docker login] --> G[docker pull] --> E
+    F -->|no| G
 
-### Functional Tests
-- `test-zap-thresholds.yml` - Validates failure threshold logic
-- `test-zap-integration.yml` - Tests ZAP with other scanners
+    E[scanner-container action]
+    E --> E1[validate inputs]
+    E1 --> E2[get-job-id for unique artifacts]
+    E2 --> E3{scanners input}
 
-## Running Tests
+    E3 -->|contains syft| S1["anchore/sbom-action<br/>(CycloneDX + SPDX)"]
+    E3 -->|contains trivy| T1{github.com?}
+    T1 -->|yes| T2["aquasecurity/trivy-action<br/>(JSON + SARIF + Table)"]
+    T1 -->|GHES| T3["curl install trivy<br/>trivy CLI direct"]
+    E3 -->|contains grype| G1["anchore/scan-action<br/>(JSON + SARIF)"]
 
-### Quick Start with Makefile
+    S1 --> SEV
+    T2 --> SEV
+    T3 --> SEV
+    G1 --> SEV
 
-```bash
-# Setup (first time only)
-make -f code/Makefile setup
+    SEV[severity-check]
+    SEV --> SEV1["extract CVE IDs from trivy + grype"]
+    SEV1 --> SEV2["deduplicate across scanners"]
+    SEV2 --> SEV3{fail_on_severity?}
+    SEV3 -->|none| PASS[scan_status=pass]
+    SEV3 -->|critical/high/medium/low| SEV4{"vulns >= threshold?"}
+    SEV4 -->|yes| SEV5{allow_failure?}
+    SEV5 -->|true| PASS
+    SEV5 -->|false| FAIL["exit 1"]
+    SEV4 -->|no| PASS
 
-# View all available commands
-make -f code/Makefile help
+    PASS --> ART[organize + upload artifacts]
+    FAIL --> ART
 
-# Local testing (quick debugging)
-make -f code/Makefile test-juiceshop
-make -f code/Makefile test-dvwa
-make -f code/Makefile test-podinfo
+    ART --> SUM[container-scan-summary job]
+    D2 --> SUM
 
-# GitHub Actions (validates PR #101)
-make -f code/Makefile github-all
-make -f code/Makefile github-watch
+    SUM --> SUM1["download all scan artifacts"]
+    SUM1 --> SUM2["map artifacts to containers"]
+    SUM2 --> SUM3["deduplicate CVEs per container"]
+    SUM3 --> SUM4["generate combined summary"]
+    SUM4 --> SUM5{"PR context?"}
+    SUM5 -->|yes| SUM6["post PR comment"]
+    SUM5 -->|no| SUM7["step summary only"]
 ```
 
-### Option 1: Local Testing (Fast, Debugging)
+## Test Matrix (25 tests)
 
-**⚠️ Local testing does NOT test the workflow integration. Use GitHub Actions to validate PR #101.**
+### Unit Tests — `test-unit.yml`
 
-Local testing is useful for:
-- Quick debugging
-- Learning how ZAP works
-- Rapid iteration
+| # | Test | Validates |
+|---|------|-----------|
+| U1 | parse-container-config.test.js | Config parsing, schema validation, matrix generation |
+| U2 | test-parse-trivy-results.sh | Trivy JSON to CVE extraction |
+| U3 | test-parse-grype-results.sh | Grype JSON to CVE extraction |
+| U4 | test-generate-container-summary.sh | Summary generation from scan results |
+| U5 | GHES static analysis | No hardcoded github.com URLs in action logic |
+
+### Remote Mode Tests — `test-remote.yml`
+
+| # | Test | Image | Scanners | Severity | allow_failure | Expected | Category |
+|---|------|-------|----------|----------|---------------|----------|----------|
+| R1 | remote-vuln-all-scanners | nginx:1.19.0 | trivy,grype,syft | none | false | PASS, vulns found | TP-detect |
+| R2 | remote-clean-image | distroless/static-debian12 | trivy,grype | none | false | PASS, no findings | TN-detect |
+| R3 | remote-trivy-only | alpine:3.18 | trivy | none | false | PASS, trivy only | scanner isolation |
+| R4 | remote-grype-only | alpine:3.18 | grype | none | false | PASS, grype only | scanner isolation |
+| R5 | remote-syft-only | alpine:3.18 | syft | none | false | PASS, SBOM only | scanner isolation |
+| R6 | remote-fail-critical | nginx:1.19.0 | trivy,grype | critical | false | FAIL | TP-threshold |
+| R7 | remote-pass-none | nginx:1.19.0 | trivy,grype | none | false | PASS despite vulns | TN-threshold |
+| R8 | remote-allow-failure | nginx:1.19.0 | trivy | high | true | PASS (bypassed) | allow_failure |
+| R9 | remote-bad-image | nonexistent/nosuchimage:v0 | trivy | none | false | Graceful error | error handling |
+| R10 | remote-clean-strict | distroless/static-debian12 | trivy,grype | low | false | PASS | TN-threshold |
+| R11 | remote-threshold-precision | alpine:3.18 | trivy,grype | critical | false | PASS (no criticals) | TN-precision |
+| R12 | remote-dedup-validation | nginx:1.19.0 | trivy,grype | none | false | PASS + dedup verified | dedup logic |
+
+### Discover Mode Tests — `test-discover.yml`
+
+| # | Test | Scanners | Severity | Expected |
+|---|------|----------|----------|----------|
+| D1 | discover-mixed | trivy,grype | none | Finds good + vulnerable, broken build skipped |
+| D2 | discover-trivy-only | trivy | none | Single scanner in discover mode |
+| D3 | discover-severity | trivy,grype | critical | Threshold applied to discovered containers |
+
+### Direct Action Tests — `test-actions-direct.yml`
+
+| # | Test | Config | Expected |
+|---|------|--------|----------|
+| A1 | config-single-public | tests/configs/single-public.yml | 1 entry, has_containers=true |
+| A2 | config-multi-container | tests/configs/multi-container.yml | 3 entries, 6+ scan_matrix entries |
+| A3 | config-structured-image | tests/configs/structured-image.yml | Image ref built from components |
+
+### Regression Tests — `test-suite.yml`
+
+| # | Test | Validates |
+|---|------|-----------|
+| I1 | infrastructure-scan | trivy-iac + checkov still work |
+| I2 | no-hardcoded-urls | No github.com URLs in action shell scripts |
+
+## Quick Start
 
 ```bash
-# Quick test
-./code/local-test.sh
+# Run full suite
+gh workflow run test-suite.yml
 
-# Test specific target
-TARGET=juiceshop SCAN_TYPE=baseline ./code/local-test.sh
-TARGET=dvwa SCAN_TYPE=full ./code/local-test.sh
-TARGET=podinfo ./code/local-test.sh
+# Run specific scope
+gh workflow run test-suite.yml -f scope=unit
+gh workflow run test-suite.yml -f scope=remote
+gh workflow run test-suite.yml -f scope=discover
+gh workflow run test-suite.yml -f scope=actions
 
-# Interactive testing with ZAP UI
-docker-compose -f data/docker-compose.local.yml up -d
-open http://localhost:8080/zap
-```
-
-See [Local Testing Guide](docs/local-testing.md) for details.
-
-### Option 2: GitHub Actions (Official, Validates PR #101)
-
-**✅ This is the official way to test PR #101 integration.**
-
-```bash
-# Run all workflows
-gh workflow run test-zap-docker-juiceshop.yml
-gh workflow run test-zap-docker-dvwa.yml
-gh workflow run test-zap-url-mode.yml
-gh workflow run test-zap-compose-mode.yml
-gh workflow run test-zap-thresholds.yml
-gh workflow run test-zap-integration.yml
-
-# Or use the master workflow
-gh workflow run run-all-tests.yml --field test_suite=all
-
-# Monitor results
+# Monitor
 gh run watch
-gh run list
 ```
 
-## Validation
+## Repository Structure
 
-### Automated Validation
-Use the validation script to check scan results:
+```
+.github/workflows/
+  test-suite.yml             Orchestrator (dispatch + weekly Sunday 9am UTC)
+  test-remote.yml            12 remote mode tests
+  test-discover.yml          3 discover mode tests
+  test-actions-direct.yml    3 composite action tests
+  test-unit.yml              5 unit tests
 
-```bash
-# Download the ZAP report artifact from workflow
-gh run download <run-id>
-
-# Validate results
-chmod +x .github/scripts/validate-zap-results.sh
-.github/scripts/validate-zap-results.sh \
-  zap-report.json \
-  .github/scripts/expected-vulnerabilities-juiceshop.txt
+tests/
+  dockerfiles/
+    good/Dockerfile           FROM alpine:3.18
+    vulnerable/Dockerfile     FROM node:14-slim (known CVEs)
+    broken/Dockerfile         Invalid (tests error handling)
+  configs/
+    single-public.yml         1 public container
+    multi-container.yml       3 containers, mixed scanners
+    structured-image.yml      Structured image object format
+    all-options.yml           Every config field populated
+    invalid-duplicate.yml     Duplicate names (schema error)
 ```
 
-### Manual Validation Checklist
+## TP/TN Coverage Matrix
 
-See `data/test-checklist.csv` for the comprehensive test checklist with 70+ validation points covering:
+|  | Scanner finds vulns | Scanner finds nothing |
+|--|--------------------|-----------------------|
+| **Image IS vulnerable** | R1, R6, R8, R12 (True Positive) | Bug — caught by R1 assertion |
+| **Image is clean** | Bug — caught by R2/R10 assertion | R2, R10 (True Negative) |
 
-1. **Scan Mode Verification** (5 tests)
-2. **Scan Type Verification** (7 tests)
-3. **Threshold Testing** (6 tests)
-4. **Integration Testing** (4 tests)
-5. **Configuration Options** (4 tests)
-6. **Reporting & Artifacts** (6 tests)
-7. **Error Handling** (6 tests)
-8. **Performance** (4 tests)
-9. **Functional Tests** (5 tests)
-10. **Detection Validation** (9 tests)
-11. **Documentation** (5 tests)
-12. **Validation** (4 tests)
-13. **Security** (4 tests)
-14. **Regression** (3 tests)
-
-## Test Checklist CSV
-
-The `data/test-checklist.csv` file contains:
-- **Category**: Test grouping
-- **Test ID**: Unique identifier
-- **Test Name**: Short description
-- **Description**: Detailed test description
-- **Expected Result**: What should happen
-- **Test File**: Which workflow tests this
-- **Validation Method**: How to verify
-- **Status**: Track completion (empty by default)
-
-Import this into your spreadsheet tool to track testing progress.
-
-## Key Validation Points
-
-### Must Pass
-- ✅ All three scan modes work (url, docker-run, compose)
-- ✅ All three scan types work (baseline, full, api)
-- ✅ ZAP is opt-in (not included in 'all' scanners)
-- ✅ Failure thresholds trigger correctly
-- ✅ Reports are generated and parseable
-- ✅ Known vulnerabilities are detected
-
-### Must Not Happen
-- ❌ ZAP runs when scanners='all'
-- ❌ Breaks existing scanners
-- ❌ Orphaned containers after scan
-- ❌ False positives on clean applications
-- ❌ Workflow passes when it should fail
-
-## PR #101 Review
-
-Testing PR commit: `79dbc2998a0c6f83e77d44176ea38fc67bd15fe0`
-
-All workflows reference this specific commit:
-```yaml
-uses: huntridge-labs/hardening-workflows/.github/workflows/reusable-security-hardening.yml@79dbc2998a0c6f83e77d44176ea38fc67bd15fe0
-```
-
-## Expected Vulnerabilities
-
-### OWASP Juice Shop
-- Cross-Site Scripting (XSS)
-- SQL Injection
-- Missing Security Headers (CSP, X-Frame-Options, etc.)
-- Insecure Cookie Settings
-- CSRF vulnerabilities
-
-### DVWA
-- SQL Injection
-- Cross-Site Scripting
-- Command Injection
-- File Inclusion
-
-### Altoro Mutual (testfire.net)
-- Various SQL injection points
-- XSS vulnerabilities
-- Session management issues
-
-### Podinfo (Clean App)
-- Should have minimal findings
-- Only informational/low severity issues expected
-
-## Troubleshooting
-
-### Workflow Fails Immediately
-- Check if the PR branch/commit is accessible
-- Verify repository secrets are configured
-- Check workflow permissions
-
-### ZAP Reports No Vulnerabilities
-- Verify target application started correctly
-- Check port mappings
-- Ensure scan duration was reasonable (>30 seconds)
-- Review ZAP logs for connection issues
-
-### Container Issues
-- Verify Docker images are accessible
-- Check port conflicts
-- Ensure healthchecks pass
-
-### Threshold Tests
-- Use `continue-on-error: true` for tests expected to fail
-- Check workflow conclusion vs outcome
-- Validate error messages are clear
-
-## Contributing
-
-When adding new tests:
-1. Use existing containers when possible
-2. Add entry to `data/test-checklist.csv`
-3. Include expected vulnerabilities file if needed
-4. Document validation criteria
-5. Update this README
-
-## Resources
-
-- [PR #101](https://github.com/huntridge-labs/hardening-workflows/pull/101)
-- [OWASP ZAP Documentation](https://www.zaproxy.org/docs/)
-- [Juice Shop Vulnerabilities](https://pwning.owasp-juice.shop/)
-- [DVWA Documentation](https://github.com/digininja/DVWA)
+|  | Threshold triggers failure | Threshold allows pass |
+|--|---------------------------|-----------------------|
+| **Vulns meet threshold** | R6 (True Positive) | Bug — caught by R6 |
+| **Vulns below threshold** | Bug — caught by R11 | R7, R10, R11 (True Negative) |

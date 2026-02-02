@@ -1,0 +1,252 @@
+name: "PR #114 Test Suite"
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Test scope to run'
+        required: true
+        type: choice
+        options:
+          - all
+          - unit
+          - remote
+          - discover
+          - actions
+          - regression
+        default: 'all'
+
+  schedule:
+    # Weekly Sunday 9am UTC
+    - cron: '0 9 * * 0'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  packages: read
+  pull-requests: write
+
+# ============================================================================
+# Orchestrator: calls sub-workflows based on scope selection.
+# Weekly schedule runs 'all' scope.
+# ============================================================================
+
+jobs:
+  # ==========================================================================
+  # Unit Tests (U1-U5)
+  # ==========================================================================
+  unit-tests:
+    name: "Unit Tests"
+    if: inputs.scope == 'all' || inputs.scope == 'unit' || github.event_name == 'schedule'
+    uses: ./.github/workflows/test-unit.yml
+
+  # ==========================================================================
+  # Direct Action Tests (A1-A3)
+  # ==========================================================================
+  action-tests:
+    name: "Direct Action Tests"
+    if: inputs.scope == 'all' || inputs.scope == 'actions' || github.event_name == 'schedule'
+    uses: ./.github/workflows/test-actions-direct.yml
+
+  # ==========================================================================
+  # Remote Mode Tests (R1-R12)
+  # ==========================================================================
+  remote-tests:
+    name: "Remote Mode Tests"
+    if: inputs.scope == 'all' || inputs.scope == 'remote' || github.event_name == 'schedule'
+    uses: ./.github/workflows/test-remote.yml
+
+  # ==========================================================================
+  # Discover Mode Tests (D1-D3)
+  # ==========================================================================
+  discover-tests:
+    name: "Discover Mode Tests"
+    if: inputs.scope == 'all' || inputs.scope == 'discover' || github.event_name == 'schedule'
+    uses: ./.github/workflows/test-discover.yml
+
+  # ==========================================================================
+  # I1: Infrastructure scan regression
+  # ==========================================================================
+  i1-infrastructure-scan:
+    name: "I1: infrastructure-scan regression"
+    if: inputs.scope == 'all' || inputs.scope == 'regression' || github.event_name == 'schedule'
+    uses: huntridge-labs/hardening-workflows/.github/workflows/infrastructure-scan.yml@feat/migrate-to-composite-actions
+    with:
+      fail_on_severity: none
+
+  # ==========================================================================
+  # I2: No hardcoded URLs (inline regression check)
+  # ==========================================================================
+  i2-no-hardcoded-urls:
+    name: "I2: no hardcoded URLs"
+    if: inputs.scope == 'all' || inputs.scope == 'regression' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout upstream PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: feat/migrate-to-composite-actions
+
+      - name: Scan for hardcoded github.com in shell scripts
+        run: |
+          echo "Scanning all action shell scripts for hardcoded github.com URLs..."
+
+          VIOLATIONS=0
+
+          # Find all .sh files in actions directories
+          while IFS= read -r script; do
+            # Skip test files and README
+            [[ "$script" == *"/tests/"* ]] && continue
+            [[ "$script" == *"README"* ]] && continue
+
+            # Look for https://github.com not wrapped in server_url logic
+            MATCHES=$(grep -n 'https://github\.com' "$script" 2>/dev/null | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' | grep -v '\.md:' || true)
+            if [ -n "$MATCHES" ]; then
+              echo "VIOLATION: $script"
+              echo "$MATCHES"
+              VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+          done < <(find .github/actions -name "*.sh" -type f)
+
+          # Also check action.yml run: blocks
+          while IFS= read -r action_yml; do
+            MATCHES=$(grep -n 'https://github\.com' "$action_yml" 2>/dev/null | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' | grep -v 'description:' | grep -v 'example' || true)
+            if [ -n "$MATCHES" ]; then
+              echo "VIOLATION: $action_yml"
+              echo "$MATCHES"
+              VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+          done < <(find .github/actions -name "action.yml" -type f)
+
+          if [ "$VIOLATIONS" -gt 0 ]; then
+            echo "::error::Found $VIOLATIONS file(s) with hardcoded github.com URLs"
+            exit 1
+          fi
+
+          echo "No hardcoded github.com URLs found"
+
+  # ==========================================================================
+  # Final Summary
+  # ==========================================================================
+  summary:
+    name: "Test Suite Summary"
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - action-tests
+      - remote-tests
+      - discover-tests
+      - i1-infrastructure-scan
+      - i2-no-hardcoded-urls
+    if: always()
+    steps:
+      - name: Generate comprehensive summary
+        env:
+          UNIT: ${{ needs.unit-tests.result }}
+          ACTIONS: ${{ needs.action-tests.result }}
+          REMOTE: ${{ needs.remote-tests.result }}
+          DISCOVER: ${{ needs.discover-tests.result }}
+          I1: ${{ needs.i1-infrastructure-scan.result }}
+          I2: ${{ needs.i2-no-hardcoded-urls.result }}
+          SCOPE: ${{ inputs.scope || 'all' }}
+        run: |
+          icon() {
+            case "$1" in
+              success) echo "PASS" ;;
+              failure) echo "FAIL" ;;
+              skipped) echo "SKIP" ;;
+              cancelled) echo "CANCEL" ;;
+              *) echo "?" ;;
+            esac
+          }
+
+          PASSED=0
+          FAILED=0
+          SKIPPED=0
+
+          count() {
+            case "$1" in
+              success) PASSED=$((PASSED + 1)) ;;
+              failure) FAILED=$((FAILED + 1)) ;;
+              skipped) SKIPPED=$((SKIPPED + 1)) ;;
+            esac
+          }
+
+          count "$UNIT"
+          count "$ACTIONS"
+          count "$REMOTE"
+          count "$DISCOVER"
+          count "$I1"
+          count "$I2"
+
+          TOTAL=$((PASSED + FAILED))
+          [ "$TOTAL" -eq 0 ] && TOTAL=1
+          PASS_RATE=$((PASSED * 100 / TOTAL))
+
+          if [ "$FAILED" -eq 0 ] && [ "$PASSED" -gt 0 ]; then
+            VERDICT="PASS"
+          else
+            VERDICT="FAIL"
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          # PR #114 Test Suite Results
+
+          **Scope:** \`$SCOPE\`
+          **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')
+          **Verdict:** $VERDICT ($PASSED passed, $FAILED failed, $SKIPPED skipped)
+          **Pass Rate:** $PASS_RATE%
+
+          ---
+
+          ## Test Category Results
+
+          | Category | Tests | Result | Status |
+          |----------|-------|--------|--------|
+          | Unit Tests (U1-U5) | 5 | $UNIT | $(icon "$UNIT") |
+          | Direct Action Tests (A1-A3) | 3 | $ACTIONS | $(icon "$ACTIONS") |
+          | Remote Mode Tests (R1-R12) | 12 | $REMOTE | $(icon "$REMOTE") |
+          | Discover Mode Tests (D1-D3) | 3 | $DISCOVER | $(icon "$DISCOVER") |
+          | Infrastructure Scan (I1) | 1 | $I1 | $(icon "$I1") |
+          | No Hardcoded URLs (I2) | 1 | $I2 | $(icon "$I2") |
+
+          ---
+
+          ## Coverage Summary
+
+          | Area | Tests | What's Validated |
+          |------|-------|-----------------|
+          | True Positive Detection | R1, R6, R12 | Scanners find CVEs in vulnerable images |
+          | True Negative Detection | R2, R10 | Clean images produce no/minimal findings |
+          | Threshold Precision | R7, R10, R11 | Thresholds don't over/under-trigger |
+          | Scanner Isolation | R3, R4, R5 | Each scanner works independently |
+          | Error Handling | R9 | Bad image references handled gracefully |
+          | Deduplication | R12 | Cross-scanner CVE dedup works |
+          | Config Parsing | A1, A2, A3 | Matrix generation from container-config.yml |
+          | Discover Mode | D1, D2, D3 | Dockerfile discovery + build + scan |
+          | Unit Tests | U1-U5 | Script-level correctness |
+          | Regression | I1, I2 | Infrastructure scan + GHES compatibility |
+          EOF
+
+      - name: Fail if any test category failed
+        env:
+          UNIT: ${{ needs.unit-tests.result }}
+          ACTIONS: ${{ needs.action-tests.result }}
+          REMOTE: ${{ needs.remote-tests.result }}
+          DISCOVER: ${{ needs.discover-tests.result }}
+          I1: ${{ needs.i1-infrastructure-scan.result }}
+          I2: ${{ needs.i2-no-hardcoded-urls.result }}
+        run: |
+          FAILED=0
+          for result in "$UNIT" "$ACTIONS" "$REMOTE" "$DISCOVER" "$I1" "$I2"; do
+            [ "$result" = "failure" ] && FAILED=$((FAILED + 1))
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED test category(ies) failed"
+            exit 1
+          fi
+          echo "All test categories passed or were skipped"

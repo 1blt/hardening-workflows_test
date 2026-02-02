@@ -1,0 +1,138 @@
+name: "Unit Tests"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # U1: parse-container-config.test.js
+  parse-container-config:
+    name: "U1: parse-container-config.test.js"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout upstream PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: feat/migrate-to-composite-actions
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: .github/actions/parse-container-config
+        run: npm install --no-save js-yaml ajv
+
+      - name: Run tests
+        working-directory: .github/actions/parse-container-config
+        run: |
+          npm install --no-save jest
+          npx jest tests/test-parse-container-config.test.js --verbose 2>&1
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+        id: test
+
+  # U2: test-parse-trivy-results.sh
+  parse-trivy-results:
+    name: "U2: test-parse-trivy-results.sh"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout upstream PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: feat/migrate-to-composite-actions
+
+      - name: Run trivy parser tests
+        run: |
+          chmod +x .github/actions/scanner-container/tests/test-parse-trivy-results.sh
+          chmod +x .github/actions/scanner-container/scripts/parse-trivy-results.sh
+          .github/actions/scanner-container/tests/test-parse-trivy-results.sh
+
+  # U3: test-parse-grype-results.sh
+  parse-grype-results:
+    name: "U3: test-parse-grype-results.sh"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout upstream PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: feat/migrate-to-composite-actions
+
+      - name: Run grype parser tests
+        run: |
+          chmod +x .github/actions/scanner-container/tests/test-parse-grype-results.sh
+          chmod +x .github/actions/scanner-container/scripts/parse-grype-results.sh
+          .github/actions/scanner-container/tests/test-parse-grype-results.sh
+
+  # U4: test-generate-container-summary.sh
+  generate-container-summary:
+    name: "U4: test-generate-container-summary.sh"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout upstream PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: feat/migrate-to-composite-actions
+
+      - name: Run summary generation tests
+        run: |
+          chmod +x .github/actions/scanner-container/tests/test-generate-container-summary.sh
+          chmod +x .github/actions/scanner-container/scripts/generate-container-summary.sh
+          chmod +x .github/actions/scanner-container/scripts/parse-trivy-results.sh
+          chmod +x .github/actions/scanner-container/scripts/parse-grype-results.sh
+          .github/actions/scanner-container/tests/test-generate-container-summary.sh
+
+  # U5: GHES static analysis
+  ghes-static-analysis:
+    name: "U5: GHES static analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout upstream PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: huntridge-labs/hardening-workflows
+          ref: feat/migrate-to-composite-actions
+
+      - name: Check for hardcoded github.com URLs in action scripts
+        run: |
+          echo "Scanning action shell scripts for hardcoded github.com URLs..."
+          VIOLATIONS=0
+
+          # Search shell scripts in container-related actions for hardcoded URLs
+          # Exclude README, docs, comments, and the server_url references (which are correct)
+          while IFS= read -r script; do
+            MATCHES=$(grep -n 'https://github\.com' "$script" | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' || true)
+            if [ -n "$MATCHES" ]; then
+              echo "VIOLATION in $script:"
+              echo "$MATCHES"
+              VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+          done < <(find .github/actions/scanner-container .github/actions/scanner-container-summary .github/actions/parse-container-config -name "*.sh" -type f)
+
+          # Also check action.yml files for hardcoded URLs in run blocks
+          while IFS= read -r action; do
+            MATCHES=$(grep -n 'https://github\.com' "$action" | grep -v '^\s*#' | grep -v 'github\.server_url' | grep -v 'GITHUB_SERVER_URL' | grep -v 'description:' | grep -v 'README' || true)
+            if [ -n "$MATCHES" ]; then
+              echo "VIOLATION in $action:"
+              echo "$MATCHES"
+              VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+          done < <(find .github/actions/scanner-container .github/actions/scanner-container-summary .github/actions/parse-container-config -name "action.yml" -type f)
+
+          if [ "$VIOLATIONS" -gt 0 ]; then
+            echo "::error::Found $VIOLATIONS file(s) with hardcoded github.com URLs"
+            exit 1
+          fi
+
+          echo "No hardcoded github.com URLs found in action scripts"

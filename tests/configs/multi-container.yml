@@ -1,0 +1,14 @@
+containers:
+  - name: nginx-old
+    image: nginx:1.19.0
+    scanners: [trivy, grype, syft]
+    fail_on_severity: none
+  - name: alpine-pinned
+    image: alpine:3.18
+    scanners: [trivy]
+    fail_on_severity: high
+  - name: node-legacy
+    image: node:14-slim
+    scanners: [trivy, grype]
+    fail_on_severity: none
+    allow_failure: true
