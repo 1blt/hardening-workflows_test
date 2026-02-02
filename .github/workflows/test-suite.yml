@@ -1,6 +1,9 @@
 name: "PR #114 Test Suite"
 
 on:
+  push:
+    branches: [main]
+
   workflow_dispatch:
     inputs:
       scope:
@@ -21,6 +24,10 @@ on:
     # Weekly Sunday 9am UTC
     - cron: '0 9 * * 0'
 
+concurrency:
+  group: test-suite-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   security-events: write
@@ -30,7 +37,8 @@ permissions:
 
 # ============================================================================
 # Orchestrator: calls sub-workflows based on scope selection.
-# Weekly schedule runs 'all' scope.
+# Push to main and weekly schedule run 'all' scope.
+# Concurrency group ensures only one run per ref at a time.
 # ============================================================================
 
 jobs:

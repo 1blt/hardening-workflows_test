@@ -75,7 +75,7 @@ flowchart TD
     SUM5 -->|no| SUM7["step summary only"]
 ```
 
-## Test Matrix (25 tests)
+## Test Matrix (42 tests)
 
 ### Unit Tests — `test-unit.yml`
 
@@ -119,6 +119,30 @@ flowchart TD
 | A1 | config-single-public | tests/configs/single-public.yml | 1 entry, has_containers=true |
 | A2 | config-multi-container | tests/configs/multi-container.yml | 3 entries, 6+ scan_matrix entries |
 | A3 | config-structured-image | tests/configs/structured-image.yml | Image ref built from components |
+| A4 | config-all-options | tests/configs/all-options.yml | Full schema: registry, auth, all flags |
+| A5 | config-invalid-duplicate | tests/configs/invalid-duplicate.yml | Duplicate names rejected |
+
+### Combination Tests — `test-combination.yml`
+
+Pairwise coverage tests filling gaps in the parameter space (mode × scanners × severity × allow_failure × image).
+
+| # | Mode | Scanners | Severity | allow_failure | Image | Gap filled |
+|---|------|----------|----------|---------------|-------|------------|
+| C1 | remote | trivy+syft | none | false | nginx:1.19.0 | Scanner pair TS |
+| C2 | remote | grype+syft | none | false | nginx:1.19.0 | Scanner pair GS |
+| C3 | remote | trivy | medium | false | nginx:1.19.0 | `medium` severity |
+| C4 | remote | grype | high | false | nginx:1.19.0 | `high` standalone |
+| C5 | remote | grype | critical | false | nginx:1.19.0 | Grype threshold |
+| C6 | remote | trivy | low | false | alpine:3.18 | `low` on low-vuln |
+| C7 | remote | trivy+grype | high | false | alpine:3.18 | `high` TN precision |
+| C8 | remote | trivy+grype | critical | true | nginx:1.19.0 | Multi-scanner + allow_failure |
+| C9 | remote | grype | low | true | distroless | grype + allow_failure + clean |
+| C10 | discover | trivy | medium | true | — | discover + allow_failure |
+| C11 | discover | grype | low | false | — | discover + grype only |
+| C12 | discover | trivy+grype+syft | none | false | — | discover + all scanners |
+| C13 | discover | syft | high | false | — | discover + syft only |
+| C14 | remote | trivy+grype+syft | high | true | alpine:3.18 | All scanners + threshold + allow |
+| C15 | remote | trivy+grype | medium | false | distroless | medium TN on clean |
 
 ### Regression Tests — `test-suite.yml`
 
@@ -130,7 +154,9 @@ flowchart TD
 ## Quick Start
 
 ```bash
-# Run full suite
+# Runs automatically on every push to main (concurrency: 1)
+
+# Run full suite manually
 gh workflow run test-suite.yml
 
 # Run specific scope
@@ -138,6 +164,7 @@ gh workflow run test-suite.yml -f scope=unit
 gh workflow run test-suite.yml -f scope=remote
 gh workflow run test-suite.yml -f scope=discover
 gh workflow run test-suite.yml -f scope=actions
+gh workflow run test-suite.yml -f scope=combination
 
 # Monitor
 gh run watch
@@ -147,10 +174,11 @@ gh run watch
 
 ```
 .github/workflows/
-  test-suite.yml             Orchestrator (dispatch + weekly Sunday 9am UTC)
+  test-suite.yml             Orchestrator (push + dispatch + weekly)
   test-remote.yml            12 remote mode tests
   test-discover.yml          3 discover mode tests
-  test-actions-direct.yml    3 composite action tests
+  test-actions-direct.yml    5 composite action tests
+  test-combination.yml       15 pairwise combination tests
   test-unit.yml              5 unit tests
 
 tests/
@@ -175,7 +203,21 @@ tests/
 
 |  | Threshold triggers failure | Threshold allows pass |
 |--|---------------------------|-----------------------|
-| **Vulns meet threshold** | R6 internally (1) | Bug — caught by R6 |
-| **Vulns below threshold** | Bug — caught by R11 | R7, R10, R11 (True Negative) |
+| **Vulns meet threshold** | C3, C4, C5 internally (1) | Bug — caught by C3/C4/C5 |
+| **Vulns below threshold** | Bug — caught by R11/C7 | R7, R10, R11, C7 (True Negative) |
 
-**(1)** `container-scan.yml` uses `continue-on-error: true` on scan jobs, so the reusable workflow always returns `success` even when the `scanner-container` action triggers a severity failure internally. The threshold enforcement happens inside the action (`exit 1`), but the wrapper absorbs it. R6 validates the workflow completed; the severity check ran correctly inside.
+## Pairwise Coverage
+
+After the C-series combination tests, parameter pair coverage is:
+
+| Parameter Pair | Coverage |
+|---------------|----------|
+| mode × scanners | 14/14 (100%) |
+| mode × severity | 10/10 (100%) |
+| mode × allow_failure | 4/4 (100%) |
+| severity × allow_failure | 8/10 (80%) |
+| scanners × severity | 19/35 (54%) |
+
+Remaining gaps are syft-involving severity combos (meaningless — syft is SBOM-only, doesn't do vulnerability scanning).
+
+**(1)** `container-scan.yml` uses `continue-on-error: true` on scan jobs, so the reusable workflow always returns `success` even when the `scanner-container` action triggers a severity failure internally. The threshold enforcement happens inside the action (`exit 1`), but the wrapper absorbs it. Tests validate the workflow completed; the severity check ran correctly inside.
