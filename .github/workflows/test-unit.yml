@@ -2,6 +2,10 @@ name: "Unit Tests"
 
 on:
   workflow_call:
+    outputs:
+      results:
+        description: "JSON array of individual test results"
+        value: ${{ jobs.collect-results.outputs.results }}
 
 permissions:
   contents: read
@@ -137,3 +141,52 @@ jobs:
           fi
 
           echo "No hardcoded github.com URLs found in action scripts"
+
+  # --------------------------------------------------------------------------
+  # Collect individual results for the suite summary
+  # --------------------------------------------------------------------------
+  collect-results:
+    name: "Collect Unit Results"
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - parse-container-config
+      - parse-trivy-results
+      - parse-grype-results
+      - generate-container-summary
+      - ghes-static-analysis
+    outputs:
+      results: ${{ steps.collect.outputs.results }}
+    steps:
+      - name: Build results JSON
+        id: collect
+        env:
+          U1: ${{ needs.parse-container-config.result }}
+          U2: ${{ needs.parse-trivy-results.result }}
+          U3: ${{ needs.parse-grype-results.result }}
+          U4: ${{ needs.generate-container-summary.result }}
+          U5: ${{ needs.ghes-static-analysis.result }}
+        run: |
+          to_status() {
+            case "$1" in
+              success) echo "pass" ;;
+              failure) echo "FAIL" ;;
+              skipped) echo "skip" ;;
+              cancelled) echo "cancel" ;;
+              *) echo "unknown" ;;
+            esac
+          }
+          RESULTS=$(jq -n -c \
+            --arg u1 "$(to_status "$U1")" \
+            --arg u2 "$(to_status "$U2")" \
+            --arg u3 "$(to_status "$U3")" \
+            --arg u4 "$(to_status "$U4")" \
+            --arg u5 "$(to_status "$U5")" \
+            '[
+              {"id":"U1","name":"parse-container-config.test.js","detail":"Config parsing unit test (Node.js/jest)","status":$u1},
+              {"id":"U2","name":"test-parse-trivy-results.sh","detail":"Trivy result parser unit test","status":$u2},
+              {"id":"U3","name":"test-parse-grype-results.sh","detail":"Grype result parser unit test","status":$u3},
+              {"id":"U4","name":"test-generate-container-summary.sh","detail":"Summary generation unit test","status":$u4},
+              {"id":"U5","name":"GHES static analysis","detail":"No hardcoded github.com URLs in actions","status":$u5}
+            ]')
+          echo "results=$RESULTS" >> "$GITHUB_OUTPUT"

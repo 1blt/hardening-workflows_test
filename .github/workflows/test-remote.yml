@@ -2,6 +2,10 @@ name: "Remote Mode Tests"
 
 on:
   workflow_call:
+    outputs:
+      results:
+        description: "JSON array of individual test results"
+        value: ${{ jobs.validate-results.outputs.results }}
 
 permissions:
   contents: read
@@ -197,6 +201,8 @@ jobs:
   validate-results:
     name: "Validate Remote Test Results"
     runs-on: ubuntu-latest
+    outputs:
+      results: ${{ steps.collect.outputs.results }}
     needs:
       - r1-vuln-all-scanners
       - r2-clean-image
@@ -295,7 +301,8 @@ jobs:
             exit 1
           fi
 
-      - name: Generate summary
+      - name: Build results JSON
+        id: collect
         if: always()
         env:
           R1: ${{ needs.r1-vuln-all-scanners.result }}
@@ -311,28 +318,50 @@ jobs:
           R11: ${{ needs.r11-threshold-precision.result }}
           R12: ${{ needs.r12-dedup-validation.result }}
         run: |
-          icon() {
+          to_status() {
             local got="$1" expected="$2"
-            [ "$got" = "$expected" ] && echo "pass" || echo "FAIL"
+            case "$got" in
+              skipped) echo "skip" ;;
+              cancelled) echo "cancel" ;;
+              *)
+                if [ "$got" = "$expected" ]; then
+                  echo "pass"
+                else
+                  echo "FAIL"
+                fi
+                ;;
+            esac
           }
-
-          {
-            cat << 'HEADER'
-          ## Remote Mode Test Results
-
-          | # | Test | Image | Expected | Actual | Status |
-          |---|------|-------|----------|--------|--------|
-          HEADER
-            echo "| R1 | vuln + all scanners | nginx:1.19.0 | success | ${R1} | $(icon "${R1}" success) |"
-            echo "| R2 | clean image | distroless/static | success | ${R2} | $(icon "${R2}" success) |"
-            echo "| R3 | trivy only | alpine:3.18 | success | ${R3} | $(icon "${R3}" success) |"
-            echo "| R4 | grype only | alpine:3.18 | success | ${R4} | $(icon "${R4}" success) |"
-            echo "| R5 | syft only | alpine:3.18 | success | ${R5} | $(icon "${R5}" success) |"
-            echo "| R6 | fail on critical | nginx:1.19.0 | success | ${R6} | $(icon "${R6}" success) |"
-            echo "| R7 | pass with none | nginx:1.19.0 | success | ${R7} | $(icon "${R7}" success) |"
-            echo "| R8 | allow failure | nginx:1.19.0 | success | ${R8} | $(icon "${R8}" success) |"
-            echo "| R9 | bad image | nonexistent | completed | ${R9} | $(icon "${R9}" "${R9}") |"
-            echo "| R10 | clean + strict | distroless/static | success | ${R10} | $(icon "${R10}" success) |"
-            echo "| R11 | threshold precision | alpine:3.18 | success | ${R11} | $(icon "${R11}" success) |"
-            echo "| R12 | dedup validation | nginx:1.19.0 | success | ${R12} | $(icon "${R12}" success) |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          # R9 accepts both success and failure
+          R9_STATUS="pass"
+          if [ "$R9" != "success" ] && [ "$R9" != "failure" ]; then
+            R9_STATUS="FAIL"
+          fi
+          RESULTS=$(jq -n -c \
+            --arg r1 "$(to_status "$R1" success)" \
+            --arg r2 "$(to_status "$R2" success)" \
+            --arg r3 "$(to_status "$R3" success)" \
+            --arg r4 "$(to_status "$R4" success)" \
+            --arg r5 "$(to_status "$R5" success)" \
+            --arg r6 "$(to_status "$R6" success)" \
+            --arg r7 "$(to_status "$R7" success)" \
+            --arg r8 "$(to_status "$R8" success)" \
+            --arg r9 "$R9_STATUS" \
+            --arg r10 "$(to_status "$R10" success)" \
+            --arg r11 "$(to_status "$R11" success)" \
+            --arg r12 "$(to_status "$R12" success)" \
+            '[
+              {"id":"R1","name":"vuln + all scanners","detail":"nginx:1.19.0 with trivy,grype,syft — TP detection","status":$r1},
+              {"id":"R2","name":"clean image","detail":"distroless/static-debian12 — TN detection","status":$r2},
+              {"id":"R3","name":"trivy only","detail":"alpine:3.18 scanner isolation (trivy)","status":$r3},
+              {"id":"R4","name":"grype only","detail":"alpine:3.18 scanner isolation (grype)","status":$r4},
+              {"id":"R5","name":"syft only","detail":"alpine:3.18 SBOM-only generation (syft)","status":$r5},
+              {"id":"R6","name":"fail on critical","detail":"nginx:1.19.0 + critical threshold enforcement","status":$r6},
+              {"id":"R7","name":"pass with none threshold","detail":"nginx:1.19.0 + threshold=none — TN threshold","status":$r7},
+              {"id":"R8","name":"allow failure","detail":"nginx:1.19.0 + allow_failure=true override","status":$r8},
+              {"id":"R9","name":"bad image","detail":"nonexistent/nosuchimage — graceful error handling","status":$r9},
+              {"id":"R10","name":"clean + strict threshold","detail":"distroless + low threshold — TN precision","status":$r10},
+              {"id":"R11","name":"threshold precision","detail":"alpine:3.18 med vulns + critical threshold — TN precision","status":$r11},
+              {"id":"R12","name":"dedup validation","detail":"nginx:1.19.0 trivy+grype cross-scanner deduplication","status":$r12}
+            ]')
+          echo "results=$RESULTS" >> "$GITHUB_OUTPUT"

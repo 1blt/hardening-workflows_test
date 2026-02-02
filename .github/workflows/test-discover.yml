@@ -2,6 +2,10 @@ name: "Discover Mode Tests"
 
 on:
   workflow_call:
+    outputs:
+      results:
+        description: "JSON array of individual test results"
+        value: ${{ jobs.validate-results.outputs.results }}
 
 permissions:
   contents: read
@@ -67,6 +71,8 @@ jobs:
   validate-results:
     name: "Validate Discover Test Results"
     runs-on: ubuntu-latest
+    outputs:
+      results: ${{ steps.collect.outputs.results }}
     needs:
       - d1-discover-mixed
       - d2-discover-trivy-only
@@ -122,19 +128,40 @@ jobs:
             exit 1
           fi
 
-      - name: Generate summary
+      - name: Build results JSON
+        id: collect
         if: always()
         env:
           D1: ${{ needs.d1-discover-mixed.result }}
           D2: ${{ needs.d2-discover-trivy-only.result }}
           D3: ${{ needs.d3-discover-severity.result }}
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## Discover Mode Test Results
-
-          | # | Test | Scanners | Severity | Result |
-          |---|------|----------|----------|--------|
-          | D1 | discover mixed | trivy,grype | none | ${D1} |
-          | D2 | discover trivy only | trivy | none | ${D2} |
-          | D3 | discover + severity | trivy,grype | critical | ${D3} |
-          EOF
+          to_status() {
+            local got="$1" expected="$2"
+            case "$got" in
+              skipped) echo "skip" ;;
+              cancelled) echo "cancel" ;;
+              *)
+                if [ "$got" = "$expected" ]; then
+                  echo "pass"
+                else
+                  echo "FAIL"
+                fi
+                ;;
+            esac
+          }
+          # D3 accepts both success and failure
+          D3_STATUS="pass"
+          if [ "$D3" != "success" ] && [ "$D3" != "failure" ]; then
+            D3_STATUS="FAIL"
+          fi
+          RESULTS=$(jq -n -c \
+            --arg d1 "$(to_status "$D1" success)" \
+            --arg d2 "$(to_status "$D2" success)" \
+            --arg d3 "$D3_STATUS" \
+            '[
+              {"id":"D1","name":"discover mixed","detail":"3 Dockerfiles (good+vulnerable+broken) with trivy,grype","status":$d1},
+              {"id":"D2","name":"discover trivy only","detail":"Dockerfile discovery with trivy scanner only","status":$d2},
+              {"id":"D3","name":"discover + severity","detail":"Dockerfile discovery with critical severity threshold","status":$d3}
+            ]')
+          echo "results=$RESULTS" >> "$GITHUB_OUTPUT"

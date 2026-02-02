@@ -13,6 +13,7 @@ on:
           - remote
           - discover
           - actions
+          - combination
           - regression
         default: 'all'
 
@@ -42,7 +43,7 @@ jobs:
     uses: ./.github/workflows/test-unit.yml
 
   # ==========================================================================
-  # Direct Action Tests (A1-A3)
+  # Direct Action Tests (A1-A5)
   # ==========================================================================
   action-tests:
     name: "Direct Action Tests"
@@ -64,6 +65,14 @@ jobs:
     name: "Discover Mode Tests"
     if: inputs.scope == 'all' || inputs.scope == 'discover' || github.event_name == 'schedule'
     uses: ./.github/workflows/test-discover.yml
+
+  # ==========================================================================
+  # Combination / Pairwise Tests (C1-C15)
+  # ==========================================================================
+  combination-tests:
+    name: "Combination Tests"
+    if: inputs.scope == 'all' || inputs.scope == 'combination' || github.event_name == 'schedule'
+    uses: ./.github/workflows/test-combination.yml
 
   # ==========================================================================
   # I1: Infrastructure scan regression
@@ -146,97 +155,202 @@ jobs:
       - action-tests
       - remote-tests
       - discover-tests
+      - combination-tests
       - i1-infrastructure-scan
       - i2-no-hardcoded-urls
     if: always()
     steps:
-      - name: Generate comprehensive summary
+      - name: Generate consolidated summary
         env:
-          UNIT: ${{ needs.unit-tests.result }}
-          ACTIONS: ${{ needs.action-tests.result }}
-          REMOTE: ${{ needs.remote-tests.result }}
-          DISCOVER: ${{ needs.discover-tests.result }}
+          UNIT_JSON: ${{ needs.unit-tests.outputs.results }}
+          ACTIONS_JSON: ${{ needs.action-tests.outputs.results }}
+          REMOTE_JSON: ${{ needs.remote-tests.outputs.results }}
+          DISCOVER_JSON: ${{ needs.discover-tests.outputs.results }}
+          COMBO_JSON: ${{ needs.combination-tests.outputs.results }}
+          UNIT_RESULT: ${{ needs.unit-tests.result }}
+          ACTIONS_RESULT: ${{ needs.action-tests.result }}
+          REMOTE_RESULT: ${{ needs.remote-tests.result }}
+          DISCOVER_RESULT: ${{ needs.discover-tests.result }}
+          COMBO_RESULT: ${{ needs.combination-tests.result }}
           I1: ${{ needs.i1-infrastructure-scan.result }}
           I2: ${{ needs.i2-no-hardcoded-urls.result }}
           SCOPE: ${{ inputs.scope || 'all' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           icon() {
             case "$1" in
-              success) echo "PASS" ;;
-              failure) echo "FAIL" ;;
-              skipped) echo "SKIP" ;;
-              cancelled) echo "CANCEL" ;;
-              *) echo "?" ;;
+              pass) echo ":white_check_mark:" ;;
+              FAIL) echo ":x:" ;;
+              skip) echo ":next_track_button:" ;;
+              cancel) echo ":stop_sign:" ;;
+              *) echo ":grey_question:" ;;
             esac
           }
 
-          PASSED=0
-          FAILED=0
-          SKIPPED=0
-
-          count() {
+          to_status() {
             case "$1" in
-              success) PASSED=$((PASSED + 1)) ;;
-              failure) FAILED=$((FAILED + 1)) ;;
-              skipped) SKIPPED=$((SKIPPED + 1)) ;;
+              success) echo "pass" ;;
+              failure) echo "FAIL" ;;
+              skipped) echo "skip" ;;
+              cancelled) echo "cancel" ;;
+              *) echo "unknown" ;;
             esac
           }
 
-          count "$UNIT"
-          count "$ACTIONS"
-          count "$REMOTE"
-          count "$DISCOVER"
-          count "$I1"
-          count "$I2"
+          # Merge all JSON arrays; use empty array for skipped/missing categories
+          safe_json() {
+            if [ -n "$1" ] && echo "$1" | jq empty 2>/dev/null; then
+              echo "$1"
+            else
+              echo "[]"
+            fi
+          }
 
-          TOTAL=$((PASSED + FAILED))
-          [ "$TOTAL" -eq 0 ] && TOTAL=1
-          PASS_RATE=$((PASSED * 100 / TOTAL))
+          UNIT_ARR=$(safe_json "$UNIT_JSON")
+          ACTIONS_ARR=$(safe_json "$ACTIONS_JSON")
+          REMOTE_ARR=$(safe_json "$REMOTE_JSON")
+          DISCOVER_ARR=$(safe_json "$DISCOVER_JSON")
+          COMBO_ARR=$(safe_json "$COMBO_JSON")
+
+          # Build I1 and I2 inline (they're standalone jobs, not sub-workflows)
+          I1_STATUS=$(to_status "$I1")
+          I2_STATUS=$(to_status "$I2")
+          REGRESSION_ARR=$(jq -n -c \
+            --arg i1 "$I1_STATUS" \
+            --arg i2 "$I2_STATUS" \
+            '[
+              {"id":"I1","name":"infrastructure-scan regression","detail":"infrastructure-scan.yml reusable workflow still works","status":$i1},
+              {"id":"I2","name":"no hardcoded URLs","detail":"No hardcoded github.com in container action scripts","status":$i2}
+            ]')
+
+          # Merge all into one array
+          ALL=$(jq -n -c \
+            --argjson u "$UNIT_ARR" \
+            --argjson a "$ACTIONS_ARR" \
+            --argjson r "$REMOTE_ARR" \
+            --argjson d "$DISCOVER_ARR" \
+            --argjson c "$COMBO_ARR" \
+            --argjson i "$REGRESSION_ARR" \
+            '$u + $a + $r + $d + $c + $i')
+
+          TOTAL=$(echo "$ALL" | jq 'length')
+          PASSED=$(echo "$ALL" | jq '[.[] | select(.status == "pass")] | length')
+          FAILED=$(echo "$ALL" | jq '[.[] | select(.status == "FAIL")] | length')
+          SKIPPED=$(echo "$ALL" | jq '[.[] | select(.status == "skip" or .status == "cancel")] | length')
+          RUNNABLE=$((TOTAL - SKIPPED))
+          [ "$RUNNABLE" -eq 0 ] && RUNNABLE=1
+          PASS_RATE=$((PASSED * 100 / RUNNABLE))
 
           if [ "$FAILED" -eq 0 ] && [ "$PASSED" -gt 0 ]; then
-            VERDICT="PASS"
+            VERDICT=":white_check_mark: **PASS**"
           else
-            VERDICT="FAIL"
+            VERDICT=":x: **FAIL**"
           fi
 
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          # PR #114 Test Suite Results
+          # Helper: count pass/fail/skip within a JSON array
+          cat_icon() {
+            case "$1" in
+              success) echo ":white_check_mark:" ;;
+              failure) echo ":x:" ;;
+              skipped) echo ":next_track_button:" ;;
+              cancelled) echo ":stop_sign:" ;;
+              *) echo ":grey_question:" ;;
+            esac
+          }
 
-          **Scope:** \`$SCOPE\`
-          **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')
-          **Verdict:** $VERDICT ($PASSED passed, $FAILED failed, $SKIPPED skipped)
-          **Pass Rate:** $PASS_RATE%
+          cat_counts() {
+            local arr="$1"
+            local p f s
+            p=$(echo "$arr" | jq '[.[] | select(.status == "pass")] | length')
+            f=$(echo "$arr" | jq '[.[] | select(.status == "FAIL")] | length')
+            s=$(echo "$arr" | jq '[.[] | select(.status == "skip" or .status == "cancel")] | length')
+            echo "$p/$((p + f + s))"
+          }
 
-          ---
+          # ---- Write summary ----
+          {
+            echo "# PR #114 Test Suite Results"
+            echo ""
+            echo "**Scope:** \`$SCOPE\` &nbsp; **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**Verdict:** $VERDICT &nbsp; ($PASSED passed, $FAILED failed, $SKIPPED skipped — $PASS_RATE% pass rate)"
+            echo ""
+            echo "---"
+            echo ""
 
-          ## Test Category Results
+            # ---- Category Overview ----
+            echo "## Category Overview"
+            echo ""
+            echo "| Status | Category | Tests | Passed |"
+            echo "|--------|----------|-------|--------|"
+            echo "| $(cat_icon "$UNIT_RESULT") | Unit Tests (U1-U5) | 5 | $(cat_counts "$UNIT_ARR") |"
+            echo "| $(cat_icon "$ACTIONS_RESULT") | Direct Action Tests (A1-A5) | 5 | $(cat_counts "$ACTIONS_ARR") |"
+            echo "| $(cat_icon "$REMOTE_RESULT") | Remote Mode Tests (R1-R12) | 12 | $(cat_counts "$REMOTE_ARR") |"
+            echo "| $(cat_icon "$DISCOVER_RESULT") | Discover Mode Tests (D1-D3) | 3 | $(cat_counts "$DISCOVER_ARR") |"
+            echo "| $(cat_icon "$COMBO_RESULT") | Combination Tests (C1-C15) | 15 | $(cat_counts "$COMBO_ARR") |"
+            echo "| $(cat_icon "$I1") | Infrastructure Scan (I1) | 1 | $([ "$I1_STATUS" = "pass" ] && echo "1" || echo "0")/1 |"
+            echo "| $(cat_icon "$I2") | No Hardcoded URLs (I2) | 1 | $([ "$I2_STATUS" = "pass" ] && echo "1" || echo "0")/1 |"
+            echo ""
+            echo "---"
+            echo ""
 
-          | Category | Tests | Result | Status |
-          |----------|-------|--------|--------|
-          | Unit Tests (U1-U5) | 5 | $UNIT | $(icon "$UNIT") |
-          | Direct Action Tests (A1-A3) | 3 | $ACTIONS | $(icon "$ACTIONS") |
-          | Remote Mode Tests (R1-R12) | 12 | $REMOTE | $(icon "$REMOTE") |
-          | Discover Mode Tests (D1-D3) | 3 | $DISCOVER | $(icon "$DISCOVER") |
-          | Infrastructure Scan (I1) | 1 | $I1 | $(icon "$I1") |
-          | No Hardcoded URLs (I2) | 1 | $I2 | $(icon "$I2") |
+            # ---- Section: Unit Tests ----
+            echo "### Unit Tests"
+            echo ""
+            echo "| Status | ID | Name | Detail | Log |"
+            echo "|--------|----|------|--------|-----|"
+            echo "$UNIT_ARR" | jq -r --arg url "$RUN_URL" \
+              '.[] | "| \(if .status == "pass" then ":white_check_mark:" elif .status == "FAIL" then ":x:" elif .status == "skip" then ":next_track_button:" else ":grey_question:" end) | \(.id) | \(.name) | \(.detail) | [log](\($url)) |"'
+            echo ""
 
-          ---
+            # ---- Section: Direct Action Tests ----
+            echo "### Direct Action Tests"
+            echo ""
+            echo "| Status | ID | Name | Detail | Log |"
+            echo "|--------|----|------|--------|-----|"
+            echo "$ACTIONS_ARR" | jq -r --arg url "$RUN_URL" \
+              '.[] | "| \(if .status == "pass" then ":white_check_mark:" elif .status == "FAIL" then ":x:" elif .status == "skip" then ":next_track_button:" else ":grey_question:" end) | \(.id) | \(.name) | \(.detail) | [log](\($url)) |"'
+            echo ""
 
-          ## Coverage Summary
+            # ---- Section: Remote Mode Tests ----
+            echo "### Remote Mode Tests"
+            echo ""
+            echo "| Status | ID | Name | Detail | Log |"
+            echo "|--------|----|------|--------|-----|"
+            echo "$REMOTE_ARR" | jq -r --arg url "$RUN_URL" \
+              '.[] | "| \(if .status == "pass" then ":white_check_mark:" elif .status == "FAIL" then ":x:" elif .status == "skip" then ":next_track_button:" else ":grey_question:" end) | \(.id) | \(.name) | \(.detail) | [log](\($url)) |"'
+            echo ""
 
-          | Area | Tests | What's Validated |
-          |------|-------|-----------------|
-          | True Positive Detection | R1, R6, R12 | Scanners find CVEs in vulnerable images |
-          | True Negative Detection | R2, R10 | Clean images produce no/minimal findings |
-          | Threshold Precision | R7, R10, R11 | Thresholds don't over/under-trigger |
-          | Scanner Isolation | R3, R4, R5 | Each scanner works independently |
-          | Error Handling | R9 | Bad image references handled gracefully |
-          | Deduplication | R12 | Cross-scanner CVE dedup works |
-          | Config Parsing | A1, A2, A3 | Matrix generation from container-config.yml |
-          | Discover Mode | D1, D2, D3 | Dockerfile discovery + build + scan |
-          | Unit Tests | U1-U5 | Script-level correctness |
-          | Regression | I1, I2 | Infrastructure scan + GHES compatibility |
-          EOF
+            # ---- Section: Discover Mode Tests ----
+            echo "### Discover Mode Tests"
+            echo ""
+            echo "| Status | ID | Name | Detail | Log |"
+            echo "|--------|----|------|--------|-----|"
+            echo "$DISCOVER_ARR" | jq -r --arg url "$RUN_URL" \
+              '.[] | "| \(if .status == "pass" then ":white_check_mark:" elif .status == "FAIL" then ":x:" elif .status == "skip" then ":next_track_button:" else ":grey_question:" end) | \(.id) | \(.name) | \(.detail) | [log](\($url)) |"'
+            echo ""
+
+            # ---- Section: Combination Tests ----
+            echo "### Combination Tests"
+            echo ""
+            echo "| Status | ID | Name | Detail | Log |"
+            echo "|--------|----|------|--------|-----|"
+            echo "$COMBO_ARR" | jq -r --arg url "$RUN_URL" \
+              '.[] | "| \(if .status == "pass" then ":white_check_mark:" elif .status == "FAIL" then ":x:" elif .status == "skip" then ":next_track_button:" else ":grey_question:" end) | \(.id) | \(.name) | \(.detail) | [log](\($url)) |"'
+            echo ""
+
+            # ---- Section: Regression Tests ----
+            echo "### Regression Tests"
+            echo ""
+            echo "| Status | ID | Name | Detail | Log |"
+            echo "|--------|----|------|--------|-----|"
+            echo "$REGRESSION_ARR" | jq -r --arg url "$RUN_URL" \
+              '.[] | "| \(if .status == "pass" then ":white_check_mark:" elif .status == "FAIL" then ":x:" elif .status == "skip" then ":next_track_button:" else ":grey_question:" end) | \(.id) | \(.name) | \(.detail) | [log](\($url)) |"'
+            echo ""
+
+            echo "---"
+            echo ""
+            echo "**Total: $TOTAL tests** &nbsp; :white_check_mark: $PASSED passed &nbsp; :x: $FAILED failed &nbsp; :next_track_button: $SKIPPED skipped"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any test category failed
         env:
@@ -244,11 +358,12 @@ jobs:
           ACTIONS: ${{ needs.action-tests.result }}
           REMOTE: ${{ needs.remote-tests.result }}
           DISCOVER: ${{ needs.discover-tests.result }}
+          COMBO: ${{ needs.combination-tests.result }}
           I1: ${{ needs.i1-infrastructure-scan.result }}
           I2: ${{ needs.i2-no-hardcoded-urls.result }}
         run: |
           FAILED=0
-          for result in "$UNIT" "$ACTIONS" "$REMOTE" "$DISCOVER" "$I1" "$I2"; do
+          for result in "$UNIT" "$ACTIONS" "$REMOTE" "$DISCOVER" "$COMBO" "$I1" "$I2"; do
             [ "$result" = "failure" ] && FAILED=$((FAILED + 1))
           done
 
