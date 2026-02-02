@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   security-events: write
   actions: read
   packages: read
@@ -241,6 +241,16 @@ jobs:
             --argjson i "$REGRESSION_ARR" \
             '$u + $a + $r + $d + $c + $i')
 
+          # Export for dashboard generation step
+          {
+            echo "ALL_JSON<<GHEOF"
+            echo "$ALL"
+            echo "GHEOF"
+            echo "REGRESSION_JSON<<GHEOF"
+            echo "$REGRESSION_ARR"
+            echo "GHEOF"
+          } >> "$GITHUB_ENV"
+
           TOTAL=$(echo "$ALL" | jq 'length')
           PASSED=$(echo "$ALL" | jq '[.[] | select(.status == "pass")] | length')
           FAILED=$(echo "$ALL" | jq '[.[] | select(.status == "FAIL")] | length')
@@ -361,6 +371,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any test category failed
+        id: verdict
         env:
           UNIT: ${{ needs.unit-tests.result }}
           ACTIONS: ${{ needs.action-tests.result }}
@@ -376,7 +387,66 @@ jobs:
           done
 
           if [ "$FAILED" -gt 0 ]; then
+            echo "suite_failed=true" >> "$GITHUB_OUTPUT"
             echo "::error::$FAILED test category(ies) failed"
-            exit 1
+          else
+            echo "suite_failed=false" >> "$GITHUB_OUTPUT"
+            echo "All test categories passed or were skipped"
           fi
-          echo "All test categories passed or were skipped"
+
+      # ---- Dashboard generation & deployment ----
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout gh-pages branch
+        run: |
+          # Clone just the gh-pages branch into a subdirectory (or create empty)
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git worktree add gh-pages-dir origin/gh-pages
+          else
+            git worktree add --detach gh-pages-dir
+            cd gh-pages-dir
+            git checkout --orphan gh-pages
+            git rm -rf . 2>/dev/null || true
+            echo '[]' > history.json
+            git add history.json
+            git commit -m "init gh-pages" --allow-empty
+            cd ..
+          fi
+
+      - name: Generate dashboard
+        env:
+          ALL_JSON: ${{ env.ALL_JSON }}
+          UNIT_JSON: ${{ needs.unit-tests.outputs.results }}
+          ACTIONS_JSON: ${{ needs.action-tests.outputs.results }}
+          REMOTE_JSON: ${{ needs.remote-tests.outputs.results }}
+          DISCOVER_JSON: ${{ needs.discover-tests.outputs.results }}
+          COMBO_JSON: ${{ needs.combination-tests.outputs.results }}
+          REGRESSION_JSON: ${{ env.REGRESSION_JSON }}
+          UNIT_RESULT: ${{ needs.unit-tests.result }}
+          ACTIONS_RESULT: ${{ needs.action-tests.result }}
+          REMOTE_RESULT: ${{ needs.remote-tests.result }}
+          DISCOVER_RESULT: ${{ needs.discover-tests.result }}
+          COMBO_RESULT: ${{ needs.combination-tests.result }}
+          I1_RESULT: ${{ needs.i1-infrastructure-scan.result }}
+          I2_RESULT: ${{ needs.i2-no-hardcoded-urls.result }}
+          SCOPE: ${{ inputs.scope || 'all' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          PAGES_DIR: gh-pages-dir
+        run: bash .github/scripts/generate-dashboard.sh
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-dir
+          publish_branch: gh-pages
+          force_orphan: false
+          keep_files: false
+
+      - name: Fail job if suite failed
+        if: steps.verdict.outputs.suite_failed == 'true'
+        run: exit 1
