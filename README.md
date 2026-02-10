@@ -1,8 +1,8 @@
-# PR #114 Container Scanning Test Suite
+# Hardening Workflows Test Suite
 
-Comprehensive test suite for [huntridge-labs/hardening-workflows PR #114](https://github.com/huntridge-labs/hardening-workflows/pull/114) — migration of container security scanning from reusable workflows to composite actions.
+Comprehensive test suite for [huntridge-labs/hardening-workflows](https://github.com/huntridge-labs/hardening-workflows) — validates the container security scanning composite actions and reusable workflows.
 
-## What PR #114 Changes
+## What's Being Tested
 
 | Component | Purpose |
 |-----------|---------|
@@ -10,7 +10,15 @@ Comprehensive test suite for [huntridge-labs/hardening-workflows PR #114](https:
 | `scanner-container-summary` | Composite action: combines parallel scan results, deduplicates CVEs |
 | `parse-container-config` | Composite action: generates matrix from `container-config.yml` |
 | `container-scan.yml` | Thin wrapper workflow: discover (find Dockerfiles) or remote (scan existing images) |
-| `infrastructure-scan.yml` | Updated to use composite actions for trivy-iac + checkov |
+| `infrastructure-scan.yml` | Reusable workflow for trivy-iac + checkov |
+
+## Dashboard
+
+Test results are published to GitHub Pages with each run, showing:
+- Current test status and pass rate
+- Category breakdown (unit, remote, discover, actions, combination, regression)
+- Historical run data (last 20 runs)
+- The exact commit SHA of the hardening-workflows being tested
 
 ## Execution Path
 
@@ -155,6 +163,7 @@ Pairwise coverage tests filling gaps in the parameter space (mode × scanners ×
 
 ```bash
 # Runs automatically on every push to main (concurrency: 1)
+# Also runs weekly on Sunday 9am UTC
 
 # Run full suite manually
 gh workflow run test-suite.yml
@@ -180,6 +189,9 @@ gh run watch
   test-actions-direct.yml    5 composite action tests
   test-combination.yml       15 pairwise combination tests
   test-unit.yml              5 unit tests
+
+.github/scripts/
+  generate-dashboard.sh      Dashboard HTML generator
 
 tests/
   dockerfiles/

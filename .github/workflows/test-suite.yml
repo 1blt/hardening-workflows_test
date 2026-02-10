@@ -1,4 +1,4 @@
-name: "PR #114 Test Suite"
+name: "Hardening Workflows Test Suite"
 
 on:
   push:
@@ -115,7 +115,7 @@ jobs:
 
           VIOLATIONS=0
 
-          # Only scan the actions changed by PR #114 (container scanning)
+          # Scan the container scanning composite actions
           SCAN_DIRS=(
             .github/actions/scanner-container
             .github/actions/scanner-container-summary
@@ -292,7 +292,7 @@ jobs:
 
           # ---- Write summary ----
           {
-            echo "# PR #114 Test Suite Results"
+            echo "# Hardening Workflows Test Suite Results"
             echo ""
             echo "**Scope:** \`$SCOPE\` &nbsp; **Date:** $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo "**Verdict:** $VERDICT &nbsp; ($PASSED passed, $FAILED failed, $SKIPPED skipped — $PASS_RATE% pass rate)"
@@ -403,6 +403,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Resolve hardening action ref
+        id: hardening-ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          HARDENING_REPO="huntridge-labs/hardening-workflows"
+          HARDENING_REF="feat/migrate-to-composite-actions"
+
+          # Resolve the commit SHA for the branch
+          HARDENING_SHA=$(gh api "repos/${HARDENING_REPO}/commits/${HARDENING_REF}" --jq '.sha' 2>/dev/null || echo "unknown")
+          HARDENING_SHA_SHORT="${HARDENING_SHA:0:7}"
+
+          echo "hardening_repo=${HARDENING_REPO}" >> "$GITHUB_OUTPUT"
+          echo "hardening_ref=${HARDENING_REF}" >> "$GITHUB_OUTPUT"
+          echo "hardening_sha=${HARDENING_SHA}" >> "$GITHUB_OUTPUT"
+          echo "hardening_sha_short=${HARDENING_SHA_SHORT}" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved ${HARDENING_REPO}@${HARDENING_REF} to ${HARDENING_SHA_SHORT}"
+
       - name: Fetch previous history.json
         run: |
           mkdir -p _site
@@ -434,6 +453,10 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
           PAGES_DIR: _site
+          HARDENING_REPO: ${{ steps.hardening-ref.outputs.hardening_repo }}
+          HARDENING_REF: ${{ steps.hardening-ref.outputs.hardening_ref }}
+          HARDENING_SHA: ${{ steps.hardening-ref.outputs.hardening_sha }}
+          HARDENING_SHA_SHORT: ${{ steps.hardening-ref.outputs.hardening_sha_short }}
         run: bash .github/scripts/generate-dashboard.sh
 
       - name: Setup Pages
